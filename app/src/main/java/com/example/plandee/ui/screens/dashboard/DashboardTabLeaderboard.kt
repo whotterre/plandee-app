@@ -1,18 +1,26 @@
 package com.example.plandee.ui.screens.dashboard
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Android
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FormatListBulleted
-import androidx.compose.material.icons.filled.Subscriptions
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,10 +28,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.drawable.toBitmap
 import com.example.plandee.data.repository.AppLeaderboardItem
 import com.example.plandee.data.telemetry.UsagePermissionBridge
 import com.example.plandee.ui.components.RetroTactileCard
@@ -38,9 +48,18 @@ fun DashboardTabLeaderboard(
     val context = LocalContext.current
     var showAllAppsSheet by remember { mutableStateOf(false) }
     var isUsageGranted by remember { mutableStateOf(UsagePermissionBridge.isUsageAccessGranted(context)) }
+    var filterUserAppsOnly by remember { mutableStateOf(true) }
 
-    val topItems = leaderboardItems
-    val fullAppList = if (allAppsItems.isNotEmpty()) allAppsItems else topItems
+    val rawTopItems = leaderboardItems
+    val rawFullList = if (allAppsItems.isNotEmpty()) allAppsItems else rawTopItems
+
+    val topItems = remember(rawTopItems, filterUserAppsOnly) {
+        if (filterUserAppsOnly) rawTopItems.filter { !it.isSystemApp } else rawTopItems
+    }
+
+    val fullAppList = remember(rawFullList, filterUserAppsOnly) {
+        if (filterUserAppsOnly) rawFullList.filter { !it.isSystemApp } else rawFullList
+    }
 
     Column(
         modifier = Modifier
@@ -50,22 +69,50 @@ fun DashboardTabLeaderboard(
     ) {
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            text = "App Data Ranking",
-            style = MaterialTheme.typography.titleLarge.copy(
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "App Data Ranking",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Real-time per-app data usage on device",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+        }
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            text = "Real-time app usage on your device",
-            style = MaterialTheme.typography.bodySmall.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        // USER APPS VS ALL SYSTEM FILTER TOGGLE
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterTabButton(
+                label = "📱 User Apps Only",
+                isSelected = filterUserAppsOnly,
+                onClick = { filterUserAppsOnly = true },
+                modifier = Modifier.weight(1f)
             )
-        )
+
+            FilterTabButton(
+                label = "⚙️ All Apps & System",
+                isSelected = !filterUserAppsOnly,
+                onClick = { filterUserAppsOnly = false },
+                modifier = Modifier.weight(1f)
+            )
+        }
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -146,7 +193,7 @@ fun DashboardTabLeaderboard(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = if (!isUsageGranted) "Tap the button above to grant Usage Access in Android Settings." else "Connect to Wi-Fi or Mobile Data and launch any app to track live consumption.",
+                        text = if (!isUsageGranted) "Tap the button above to grant Usage Access in Android Settings." else "Launch YouTube or any active app to display live per-app consumption.",
                         style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
@@ -157,7 +204,7 @@ fun DashboardTabLeaderboard(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 topItems.forEach { app ->
-                    key(app.name) {
+                    key(app.packageName) {
                         AppRankingCard(app = app)
                     }
                 }
@@ -224,7 +271,7 @@ fun DashboardTabLeaderboard(
                 ) {
                     Column {
                         Text(
-                            text = "All Installed Apps Data Usage",
+                            text = "Installed Apps Data Usage",
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -232,7 +279,7 @@ fun DashboardTabLeaderboard(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "${fullAppList.size} apps actively logged on device",
+                            text = "${fullAppList.size} apps logged on device today",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -258,7 +305,7 @@ fun DashboardTabLeaderboard(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
-                    items(fullAppList, key = { it.name }) { app ->
+                    items(fullAppList, key = { it.packageName }) { app ->
                         AppRankingCard(app = app)
                     }
                 }
@@ -268,15 +315,77 @@ fun DashboardTabLeaderboard(
 }
 
 @Composable
-private fun AppRankingCard(app: AppLeaderboardItem) {
-    val iconAndColor = when (app.name.lowercase()) {
-        "youtube" -> Pair(Icons.Default.Subscriptions, NeonRoseAccent)
-        "instagram" -> Pair(Icons.Default.CameraAlt, Color(0xFFE1306C))
-        else -> Pair(Icons.Default.Android, NeonEmeraldGlow)
+private fun FilterTabButton(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .height(40.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isSelected) NeonEmeraldGlow else RetroCardSurface)
+            .border(
+                1.5.dp,
+                if (isSelected) NeonEmeraldGlow else RetroBorderMetallic,
+                RoundedCornerShape(12.dp)
+            )
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        )
+    }
+}
+
+@Composable
+private fun RealAppIconImage(packageName: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val iconBitmap = remember(packageName) {
+        try {
+            val drawable = context.packageManager.getApplicationIcon(packageName)
+            drawable.toBitmap(width = 96, height = 96).asImageBitmap()
+        } catch (e: Exception) {
+            null
+        }
     }
 
+    if (iconBitmap != null) {
+        Image(
+            bitmap = iconBitmap,
+            contentDescription = packageName,
+            modifier = modifier
+        )
+    } else {
+        Box(
+            modifier = modifier.background(NeonEmeraldGlow.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Android,
+                contentDescription = packageName,
+                tint = NeonEmeraldGlow,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AppRankingCard(app: AppLeaderboardItem) {
+    val context = LocalContext.current
+    var isExpanded by remember { mutableStateOf(false) }
+
     RetroTactileCard(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { isExpanded = !isExpanded }
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -284,31 +393,41 @@ private fun AppRankingCard(app: AppLeaderboardItem) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
+                // REAL INSTALLED APP ICON
+                RealAppIconImage(
+                    packageName = app.packageName,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(42.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(iconAndColor.second),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = iconAndColor.first,
-                        contentDescription = app.name,
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+                )
 
                 Spacer(modifier = Modifier.width(14.dp))
 
                 Column {
-                    Text(
-                        text = app.name,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = app.name,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         )
-                    )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (app.isSystemApp) RetroBorderMetallic else NeonEmeraldGlow.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = app.categoryText,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 9.sp,
+                                    color = if (app.isSystemApp) MaterialTheme.colorScheme.onSurfaceVariant else NeonEmeraldGlow,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = app.usageGb,
@@ -328,7 +447,7 @@ private fun AppRankingCard(app: AppLeaderboardItem) {
             )
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         LinearProgressIndicator(
             progress = { app.progress },
@@ -339,5 +458,75 @@ private fun AppRankingCard(app: AppLeaderboardItem) {
             color = if (app.rank == "#1") NeonEmeraldGlow else NeonCyanGlow,
             trackColor = RetroTactileBg
         )
+
+        // EXPANDABLE PLAIN-ENGLISH INFO & SAFE ACTION CONTROL
+        AnimatedVisibility(visible = isExpanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 14.dp)
+            ) {
+                HorizontalDivider(color = RetroBorderMetallic)
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(verticalAlignment = Alignment.Top) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Info",
+                        tint = NeonCyanGlow,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = app.explanationText,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 18.sp
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // SAFE ACTION BUTTON: RESTRICT BACKGROUND DATA
+                Button(
+                    onClick = {
+                        try {
+                            val intent = Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.fromParts("package", app.packageName, null)
+                            )
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = RetroCardSurfaceElevated),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, RetroBorderMetallic)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = NeonEmeraldGlow,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "⚙️ Restrict Background Data",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                    }
+                }
+            }
+        }
     }
 }

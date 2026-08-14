@@ -2,6 +2,7 @@ package com.example.plandee.data.repository
 
 import android.app.usage.NetworkStatsManager
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.net.ConnectivityManager
 import android.net.TrafficStats
 import android.os.Build
@@ -32,9 +33,13 @@ data class DailyConsumptionBar(
 
 data class AppLeaderboardItem(
     val rank: String,
+    val packageName: String,
     val name: String,
     val usageGb: String,
-    val progress: Float
+    val progress: Float,
+    val isSystemApp: Boolean,
+    val explanationText: String,
+    val categoryText: String
 )
 
 class TrafficRepository(private val context: Context) {
@@ -57,7 +62,6 @@ class TrafficRepository(private val context: Context) {
         var mobileBytes = 0L
         var wifiBytes = 0L
 
-        // 1. Query NetworkStatsManager for Today's Data Transfer (12:00 AM to Now)
         if (UsagePermissionBridge.isUsageAccessGranted(context)) {
             val netStatsManager = context.getSystemService(Context.NETWORK_STATS_SERVICE) as? NetworkStatsManager
             if (netStatsManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -82,7 +86,6 @@ class TrafficRepository(private val context: Context) {
             }
         }
 
-        // 2. Hardware Counter Fallback via TrafficStats
         if (totalBytes == 0L) {
             val sysTotalRx = TrafficStats.getTotalRxBytes()
             val sysTotalTx = TrafficStats.getTotalTxBytes()
@@ -101,7 +104,6 @@ class TrafficRepository(private val context: Context) {
             }
         }
 
-        // 3. Database Fallback
         if (totalBytes == 0L) {
             wifiBytes = dbHelper.getTotalBytesByNetwork("WIFI")
             mobileBytes = dbHelper.getTotalBytesByNetwork("MOBILE")
@@ -149,6 +151,43 @@ class TrafficRepository(private val context: Context) {
         )
     }
 
+    private fun getAppExplanation(packageName: String, appName: String, isSystemApp: Boolean): String {
+        val pkgLower = packageName.lowercase()
+        val nameLower = appName.lowercase()
+
+        return when {
+            pkgLower.contains("youtube") || nameLower.contains("youtube") ->
+                "High-bandwidth video streaming app. Consumes ~1.5 GB/hour during HD video playback."
+            pkgLower.contains("instagram") || nameLower.contains("instagram") ->
+                "Social media video reels and image feed. High background and media streaming data usage."
+            pkgLower.contains("tiktok") || nameLower.contains("tiktok") ->
+                "Short-form HD video stream app. Consumes significant data while scrolling feed."
+            pkgLower.contains("chrome") || nameLower.contains("chrome") ->
+                "Web browser. High data usage from media web pages and video streaming."
+            pkgLower.contains("whatsapp") || nameLower.contains("whatsapp") ->
+                "Messaging & voice call app. Low background data; higher during video calls & status uploads."
+            pkgLower.contains("google.android.gms") || pkgLower.contains("gsf") || nameLower.contains("google play services") ->
+                "Essential Android system service powering push notifications, Google Play sync, & Location Services."
+            isSystemApp ->
+                "Android system process running in the background to handle core OS features."
+            else ->
+                "User-installed application on your device. Tap 'Restrict Background Data' to control data usage."
+        }
+    }
+
+    private fun checkIfSystemApp(packageName: String): Boolean {
+        val pkgLower = packageName.lowercase()
+        if (pkgLower.startsWith("com.android.") || pkgLower.startsWith("com.google.android.gms") || pkgLower.startsWith("com.google.android.gsf")) {
+            return true
+        }
+        return try {
+            val appInfo = context.packageManager.getApplicationInfo(packageName, 0)
+            (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     suspend fun getAppLeaderboard(): List<AppLeaderboardItem> = withContext(Dispatchers.IO) {
         val logs = dbHelper.getTopAppUsages()
         if (logs.isEmpty()) {
@@ -160,11 +199,17 @@ class TrafficRepository(private val context: Context) {
             val mb = appLog.totalBytes.toDouble() / (1024 * 1024)
             val gb = mb / 1024
             val usageText = if (gb >= 1.0) "${df.format(gb)} GB used" else "${mb.toInt()} MB used"
+            val isSys = checkIfSystemApp(appLog.packageName)
+
             AppLeaderboardItem(
                 rank = "#${index + 1}",
+                packageName = appLog.packageName,
                 name = appLog.appName,
                 usageGb = usageText,
-                progress = (appLog.totalBytes.toFloat() / maxBytes).coerceIn(0.15f, 0.95f)
+                progress = (appLog.totalBytes.toFloat() / maxBytes).coerceIn(0.15f, 0.95f),
+                isSystemApp = isSys,
+                explanationText = getAppExplanation(appLog.packageName, appLog.appName, isSys),
+                categoryText = if (isSys) "⚙️ System Service" else "📱 User App"
             )
         }
     }
@@ -180,11 +225,17 @@ class TrafficRepository(private val context: Context) {
             val mb = appLog.totalBytes.toDouble() / (1024 * 1024)
             val gb = mb / 1024
             val usageText = if (gb >= 1.0) "${df.format(gb)} GB used" else "${mb.toInt()} MB used"
+            val isSys = checkIfSystemApp(appLog.packageName)
+
             AppLeaderboardItem(
                 rank = "#${index + 1}",
+                packageName = appLog.packageName,
                 name = appLog.appName,
                 usageGb = usageText,
-                progress = (appLog.totalBytes.toFloat() / maxBytes).coerceIn(0.15f, 0.95f)
+                progress = (appLog.totalBytes.toFloat() / maxBytes).coerceIn(0.15f, 0.95f),
+                isSystemApp = isSys,
+                explanationText = getAppExplanation(appLog.packageName, appLog.appName, isSys),
+                categoryText = if (isSys) "⚙️ System Service" else "📱 User App"
             )
         }
     }
