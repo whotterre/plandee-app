@@ -66,7 +66,7 @@ fun DashboardTabHome(
     ) {
         Spacer(modifier = Modifier.height(12.dp))
 
-        // RETRO TACTILE DONUT CHART CARD - TODAY'S USAGE
+        // RETRO TACTILE DONUT CHART CARD - ELECTRIC INDIGO & CYBER TURQUOISE
         RetroTactileCard(
             modifier = Modifier.fillMaxWidth(),
             accentGlow = NeonEmeraldGlow
@@ -328,7 +328,7 @@ fun DashboardTabHome(
             MetricTile(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Default.Nightlight,
-                iconColor = Color(0xFF8B5CF6),
+                iconColor = RetroAmberGold,
                 label = "Peak Window",
                 value = peakWindowText
             )

@@ -179,7 +179,6 @@ class TrafficRepository(private val context: Context) {
     private fun checkIfSystemApp(packageName: String): Boolean {
         val pkgLower = packageName.lowercase()
 
-        // 1. Core background daemons with no user UI
         if (pkgLower.contains("android.gms") ||
             pkgLower.contains("android.gsf") ||
             pkgLower.startsWith("com.android.providers") ||
@@ -189,13 +188,11 @@ class TrafficRepository(private val context: Context) {
             return true
         }
 
-        // 2. Apps with a launcher intent (can be opened by user from app drawer: YouTube, Chrome, Gmail, WhatsApp) are USER APPS!
         val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
         if (launchIntent != null) {
             return false
         }
 
-        // 3. Fallback to system flag only if no launch intent exists
         return try {
             val appInfo = context.packageManager.getApplicationInfo(packageName, 0)
             (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
@@ -204,65 +201,90 @@ class TrafficRepository(private val context: Context) {
         }
     }
 
-    suspend fun getAppLeaderboard(): List<AppLeaderboardItem> = withContext(Dispatchers.IO) {
-        val logs = dbHelper.getTopAppUsages()
-        if (logs.isEmpty()) {
-            return@withContext emptyList()
+    private fun scanAndFetchLiveAppUsages(): List<AppLeaderboardItem> {
+        val pm = context.packageManager
+        val installedApps = pm.getInstalledApplications(0)
+        val list = mutableListOf<AppLeaderboardItem>()
+
+        val rawAppBytesMap = mutableMapOf<String, Triple<String, Long, Boolean>>()
+
+        for (appInfo in installedApps) {
+            val uid = appInfo.uid
+            val pkgName = appInfo.packageName
+            val appName = pm.getApplicationLabel(appInfo).toString()
+
+            val rx = TrafficStats.getUidRxBytes(uid)
+            val tx = TrafficStats.getUidTxBytes(uid)
+
+            if (rx != TrafficStats.UNSUPPORTED.toLong() && tx != TrafficStats.UNSUPPORTED.toLong()) {
+                val total = (rx + tx).coerceAtLeast(0L)
+                if (total > 0) {
+                    dbHelper.updateOrInsertAppLog(pkgName, appName, rx, tx)
+                    val isSys = checkIfSystemApp(pkgName)
+                    rawAppBytesMap[pkgName] = Triple(appName, total, isSys)
+                }
+            }
         }
 
-        val totalSumBytes = logs.sumOf { it.totalBytes }.toDouble().coerceAtLeast(1.0)
-        logs.mapIndexed { index, appLog ->
-            val mb = appLog.totalBytes.toDouble() / (1024 * 1024)
+        val dbLogs = dbHelper.getAllAppUsages()
+        for (log in dbLogs) {
+            if (!rawAppBytesMap.containsKey(log.packageName) && log.totalBytes > 0) {
+                val isSys = checkIfSystemApp(log.packageName)
+                rawAppBytesMap[log.packageName] = Triple(log.appName, log.totalBytes, isSys)
+            }
+        }
+
+        if (rawAppBytesMap.isEmpty()) return emptyList()
+
+        val sortedList = rawAppBytesMap.entries
+            .map { (pkg, triple) ->
+                Pair(pkg, triple)
+            }
+            .sortedByDescending { it.second.second }
+
+        val totalSumBytes = sortedList.sumOf { it.second.second }.toDouble().coerceAtLeast(1.0)
+
+        return sortedList.mapIndexed { index, entry ->
+            val pkgName = entry.first
+            val appName = entry.second.first
+            val totalBytes = entry.second.second
+            val isSys = entry.second.third
+
+            val mb = totalBytes.toDouble() / (1024 * 1024)
             val gb = mb / 1024
             val usageText = if (gb >= 1.0) "${df.format(gb)} GB used" else "${mb.toInt()} MB used"
-            val isSys = checkIfSystemApp(appLog.packageName)
 
-            val shareRatio = (appLog.totalBytes.toDouble() / totalSumBytes).toFloat()
+            val shareRatio = (totalBytes.toDouble() / totalSumBytes).toFloat()
             val sharePercent = (shareRatio * 100).roundToInt()
             val sharePercentText = "$sharePercent% of total app data"
 
             AppLeaderboardItem(
                 rank = "#${index + 1}",
-                packageName = appLog.packageName,
-                name = appLog.appName,
+                packageName = pkgName,
+                name = appName,
                 usageGb = usageText,
                 progress = shareRatio.coerceIn(0.04f, 1.0f),
                 sharePercentText = sharePercentText,
                 isSystemApp = isSys,
-                explanationText = getAppExplanation(appLog.packageName, appLog.appName, isSys),
+                explanationText = getAppExplanation(pkgName, appName, isSys),
                 categoryText = if (isSys) "⚙️" else "📱"
             )
         }
     }
 
+    suspend fun getAppLeaderboard(): List<AppLeaderboardItem> = withContext(Dispatchers.IO) {
+        val liveApps = scanAndFetchLiveAppUsages()
+        if (liveApps.isNotEmpty()) {
+            return@withContext liveApps.take(5)
+        }
+        emptyList()
+    }
+
     suspend fun getAllAppsLeaderboard(): List<AppLeaderboardItem> = withContext(Dispatchers.IO) {
-        val logs = dbHelper.getAllAppUsages()
-        if (logs.isEmpty()) {
-            return@withContext emptyList()
+        val liveApps = scanAndFetchLiveAppUsages()
+        if (liveApps.isNotEmpty()) {
+            return@withContext liveApps
         }
-
-        val totalSumBytes = logs.sumOf { it.totalBytes }.toDouble().coerceAtLeast(1.0)
-        logs.mapIndexed { index, appLog ->
-            val mb = appLog.totalBytes.toDouble() / (1024 * 1024)
-            val gb = mb / 1024
-            val usageText = if (gb >= 1.0) "${df.format(gb)} GB used" else "${mb.toInt()} MB used"
-            val isSys = checkIfSystemApp(appLog.packageName)
-
-            val shareRatio = (appLog.totalBytes.toDouble() / totalSumBytes).toFloat()
-            val sharePercent = (shareRatio * 100).roundToInt()
-            val sharePercentText = "$sharePercent% of total app data"
-
-            AppLeaderboardItem(
-                rank = "#${index + 1}",
-                packageName = appLog.packageName,
-                name = appLog.appName,
-                usageGb = usageText,
-                progress = shareRatio.coerceIn(0.04f, 1.0f),
-                sharePercentText = sharePercentText,
-                isSystemApp = isSys,
-                explanationText = getAppExplanation(appLog.packageName, appLog.appName, isSys),
-                categoryText = if (isSys) "⚙️" else "📱"
-            )
-        }
+        emptyList()
     }
 }

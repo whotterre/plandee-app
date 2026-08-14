@@ -2,29 +2,28 @@ package com.example.plandee.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+// RETRO TACTILE 3D PALETTE - ELECTRIC INDIGO & CYBER TURQUOISE
+val RetroTactileBg = Color(0xFF0B0F19)           // Deep Obsidian Slate Background
+val RetroCardSurface = Color(0xFF161C2E)         // Dark Obsidian Card Surface
+val RetroCardSurfaceElevated = Color(0xFF222B45) // Elevated Indigo Obsidian Card
+val RetroBorderMetallic = Color(0xFF334155)      // Metallic Border Stroke
+val RetroBevelHighlight = Color(0xFF475569)      // Top Bevel Inner Shadow Highlight
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+// VIBRANT GLOW ACCENTS
+val NeonEmeraldGlow = Color(0xFF6366F1)          // Electric Indigo Primary Glow
+val NeonCyanGlow = Color(0xFF06B6D4)             // Cyber Turquoise Glow
+val NeonRoseAccent = Color(0xFFEC4899)           // Electric Magenta Accent
+val RetroAmberGold = Color(0xFFF59E0B)           // Sunrise Amber Gold
 
-// RETRO-TACTILE COLOR PALETTE
-val RetroTactileBg = Color(0xFF0B1224)          // Deep Vintage Cyber Dark Navy
-val RetroCardSurface = Color(0xFF131D33)        // Tactile 3D Card Base
-val RetroCardSurfaceElevated = Color(0xFF192642)// Extruded Card Top
-val RetroBevelHighlight = Color(0xFF27385E)     // 3D Top Bevel Highlight
-val RetroBorderMetallic = Color(0xFF334773)     // Tactile Metallic Outline
+// SYSTEM NEUTRAL TEXT TOKENS
+val SlateTextPrimary = Color(0xFFF8FAFC)
+val SlateTextSecondary = Color(0xFF94A3B8)
+val SlateTextMuted = Color(0xFF64748B)
 
-val NeonEmeraldGlow = Color(0xFF10B981)         // Neon Telecom Emerald
-val NeonCyanGlow = Color(0xFF38BDF8)            // Neon Cyber Cyan
-val RetroAmberGold = Color(0xFFF59E0B)           // Retro Hardware Gold
-val NeonRoseAccent = Color(0xFFF43F5E)          // Neon Warning Rose
-
+// LEGACY MAPPING HELPERS
 val DeeEmerald = NeonEmeraldGlow
 val DeeSkyBlue = NeonCyanGlow
-val DeeRoseAccent = NeonRoseAccent
-
-val TextPrimary = Color(0xFFF8FAFC)
-val TextSecondary = Color(0xFF94A3B8)
+val DeeSlateBg = RetroTactileBg
+val InputBorderSlate = RetroBorderMetallic
+val TextPrimary = SlateTextPrimary
+val TextSecondary = SlateTextSecondary
