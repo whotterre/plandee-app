@@ -268,7 +268,7 @@ fun DashboardTabAuditor(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // DURATION SELECTOR SEGMENT
+        // DURATION SELECTOR SEGMENT - UNIFORM 1.5DP COMPLETE BORDER
         Text(
             text = "Plan Duration Preference",
             style = MaterialTheme.typography.labelSmall.copy(
@@ -279,35 +279,33 @@ fun DashboardTabAuditor(
         Spacer(modifier = Modifier.height(6.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             durations.forEach { dur ->
                 val isSelected = selectedDuration == dur
-                Surface(
+                Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isSelected) RetroCardSurfaceElevated else RetroCardSurface)
+                        .border(
+                            1.5.dp,
+                            if (isSelected) NeonEmeraldGlow else RetroBorderMetallic,
+                            RoundedCornerShape(12.dp)
+                        )
                         .clickable {
                             selectedDuration = dur
                         },
-                    color = if (isSelected) RetroCardSurfaceElevated else RetroCardSurface,
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (isSelected) NeonEmeraldGlow else RetroBorderMetallic
-                    )
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier.padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = dur,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSelected) NeonEmeraldGlow else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                    Text(
+                        text = dur,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) NeonEmeraldGlow else MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
+                    )
                 }
             }
         }
