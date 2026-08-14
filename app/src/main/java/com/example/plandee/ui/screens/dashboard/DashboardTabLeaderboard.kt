@@ -449,6 +449,31 @@ private fun AppRankingCard(app: AppLeaderboardItem) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // PROPORTIONAL DATA SHARE PERCENTAGE LABEL & BAR
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Data Contribution",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            )
+            Text(
+                text = app.sharePercentText,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (app.rank == "#1") NeonEmeraldGlow else NeonCyanGlow
+                )
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
         LinearProgressIndicator(
             progress = { app.progress },
             modifier = Modifier

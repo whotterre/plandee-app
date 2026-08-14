@@ -37,6 +37,7 @@ data class AppLeaderboardItem(
     val name: String,
     val usageGb: String,
     val progress: Float,
+    val sharePercentText: String,
     val isSystemApp: Boolean,
     val explanationText: String,
     val categoryText: String
@@ -194,19 +195,24 @@ class TrafficRepository(private val context: Context) {
             return@withContext emptyList()
         }
 
-        val maxBytes = logs.maxOfOrNull { it.totalBytes }?.toFloat() ?: 1f
+        val totalSumBytes = logs.sumOf { it.totalBytes }.toDouble().coerceAtLeast(1.0)
         logs.mapIndexed { index, appLog ->
             val mb = appLog.totalBytes.toDouble() / (1024 * 1024)
             val gb = mb / 1024
             val usageText = if (gb >= 1.0) "${df.format(gb)} GB used" else "${mb.toInt()} MB used"
             val isSys = checkIfSystemApp(appLog.packageName)
 
+            val shareRatio = (appLog.totalBytes.toDouble() / totalSumBytes).toFloat()
+            val sharePercent = (shareRatio * 100).roundToInt()
+            val sharePercentText = "$sharePercent% of total app data"
+
             AppLeaderboardItem(
                 rank = "#${index + 1}",
                 packageName = appLog.packageName,
                 name = appLog.appName,
                 usageGb = usageText,
-                progress = (appLog.totalBytes.toFloat() / maxBytes).coerceIn(0.15f, 0.95f),
+                progress = shareRatio.coerceIn(0.04f, 1.0f),
+                sharePercentText = sharePercentText,
                 isSystemApp = isSys,
                 explanationText = getAppExplanation(appLog.packageName, appLog.appName, isSys),
                 categoryText = if (isSys) "⚙️ System Service" else "📱 User App"
@@ -220,19 +226,24 @@ class TrafficRepository(private val context: Context) {
             return@withContext emptyList()
         }
 
-        val maxBytes = logs.maxOfOrNull { it.totalBytes }?.toFloat() ?: 1f
+        val totalSumBytes = logs.sumOf { it.totalBytes }.toDouble().coerceAtLeast(1.0)
         logs.mapIndexed { index, appLog ->
             val mb = appLog.totalBytes.toDouble() / (1024 * 1024)
             val gb = mb / 1024
             val usageText = if (gb >= 1.0) "${df.format(gb)} GB used" else "${mb.toInt()} MB used"
             val isSys = checkIfSystemApp(appLog.packageName)
 
+            val shareRatio = (appLog.totalBytes.toDouble() / totalSumBytes).toFloat()
+            val sharePercent = (shareRatio * 100).roundToInt()
+            val sharePercentText = "$sharePercent% of total app data"
+
             AppLeaderboardItem(
                 rank = "#${index + 1}",
                 packageName = appLog.packageName,
                 name = appLog.appName,
                 usageGb = usageText,
-                progress = (appLog.totalBytes.toFloat() / maxBytes).coerceIn(0.15f, 0.95f),
+                progress = shareRatio.coerceIn(0.04f, 1.0f),
+                sharePercentText = sharePercentText,
                 isSystemApp = isSys,
                 explanationText = getAppExplanation(appLog.packageName, appLog.appName, isSys),
                 categoryText = if (isSys) "⚙️ System Service" else "📱 User App"
