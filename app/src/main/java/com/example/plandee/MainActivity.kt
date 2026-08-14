@@ -17,7 +17,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        trafficMonitor = TrafficMonitor(applicationContext)
+        trafficMonitor = TrafficMonitor(this)
         trafficMonitor.startMonitoring()
 
         // Schedule background periodic telemetry sync worker (6h interval)

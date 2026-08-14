@@ -1,15 +1,26 @@
 package com.example.plandee.ui.screens
 
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +38,7 @@ import com.example.plandee.data.security.SessionManager
 import com.example.plandee.ui.theme.NeonEmeraldGlow
 import com.example.plandee.ui.theme.RetroTactileBg
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun SplashScreen(
@@ -36,19 +48,30 @@ fun SplashScreen(
     val context = LocalContext.current
     val sessionManager = remember { SessionManager.getInstance(context) }
 
-    val scale = remember { Animatable(0.4f) }
-    val alpha = remember { Animatable(0f) }
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1.1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 800, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.5f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 600, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
 
     LaunchedEffect(key1 = true) {
-        scale.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = 800)
-        )
-        alpha.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = 600)
-        )
-        delay(1200)
+        delay(1200.milliseconds)
 
         if (sessionManager.isLoggedIn()) {
             onNavigateToDashboard()
@@ -70,8 +93,8 @@ fun SplashScreen(
             Box(
                 modifier = Modifier
                     .size(110.dp)
-                    .scale(scale.value)
-                    .alpha(alpha.value)
+                    .scale(scale)
+                    .alpha(alpha)
                     .clip(CircleShape)
                     .background(Color.White),
                 contentAlignment = Alignment.Center
@@ -93,7 +116,7 @@ fun SplashScreen(
                     fontSize = 36.sp,
                     letterSpacing = 1.sp
                 ),
-                modifier = Modifier.alpha(alpha.value)
+                modifier = Modifier.alpha(alpha)
             )
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -105,7 +128,7 @@ fun SplashScreen(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
                 ),
-                modifier = Modifier.alpha(alpha.value)
+                modifier = Modifier.alpha(alpha)
             )
         }
     }

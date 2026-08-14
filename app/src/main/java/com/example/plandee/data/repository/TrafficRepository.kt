@@ -1,5 +1,6 @@
 package com.example.plandee.data.repository
 
+import android.app.usage.NetworkStats
 import android.app.usage.NetworkStatsManager
 import android.content.Context
 import android.content.pm.ApplicationInfo
@@ -54,6 +55,13 @@ class TrafficRepository(private val context: Context) {
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
+        }
+        return cal.timeInMillis
+    }
+
+    private fun getThirtyDayStartTimestamp(): Long {
+        val cal = Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_YEAR, -30)
         }
         return cal.timeInMillis
     }
@@ -201,13 +209,73 @@ class TrafficRepository(private val context: Context) {
         }
     }
 
-    private fun scanAndFetchLiveAppUsages(): List<AppLeaderboardItem> {
+    private fun scanAndFetchGlassWireAppUsages(): List<AppLeaderboardItem> {
         val pm = context.packageManager
-        val installedApps = pm.getInstalledApplications(0)
-        val list = mutableListOf<AppLeaderboardItem>()
+        val netStatsManager = context.getSystemService(Context.NETWORK_STATS_SERVICE) as? NetworkStatsManager
+        val isUsageGranted = UsagePermissionBridge.isUsageAccessGranted(context)
+
+        val startTime = getThirtyDayStartTimestamp()
+        val endTime = System.currentTimeMillis()
 
         val rawAppBytesMap = mutableMapOf<String, Triple<String, Long, Boolean>>()
 
+        // GlassWire Architecture: High-speed querySummary across all system UIDs
+        if (isUsageGranted && netStatsManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                val bucket = NetworkStats.Bucket()
+
+                val wifiStats = netStatsManager.querySummary(ConnectivityManager.TYPE_WIFI, null, startTime, endTime)
+                while (wifiStats.hasNextBucket()) {
+                    wifiStats.getNextBucket(bucket)
+                    val uid = bucket.uid
+                    val bytes = bucket.rxBytes + bucket.txBytes
+                    if (bytes > 0) {
+                        val packages = pm.getPackagesForUid(uid)
+                        if (!packages.isNullOrEmpty()) {
+                            val pkg = packages[0]
+                            val existing = rawAppBytesMap[pkg]?.second ?: 0L
+                            val appName = try {
+                                val info = pm.getApplicationInfo(pkg, 0)
+                                pm.getApplicationLabel(info).toString()
+                            } catch (e: Exception) {
+                                pkg
+                            }
+                            val isSys = checkIfSystemApp(pkg)
+                            rawAppBytesMap[pkg] = Triple(appName, existing + bytes, isSys)
+                        }
+                    }
+                }
+                wifiStats.close()
+
+                val mobileStats = netStatsManager.querySummary(ConnectivityManager.TYPE_MOBILE, null, startTime, endTime)
+                while (mobileStats.hasNextBucket()) {
+                    mobileStats.getNextBucket(bucket)
+                    val uid = bucket.uid
+                    val bytes = bucket.rxBytes + bucket.txBytes
+                    if (bytes > 0) {
+                        val packages = pm.getPackagesForUid(uid)
+                        if (!packages.isNullOrEmpty()) {
+                            val pkg = packages[0]
+                            val existing = rawAppBytesMap[pkg]?.second ?: 0L
+                            val appName = try {
+                                val info = pm.getApplicationInfo(pkg, 0)
+                                pm.getApplicationLabel(info).toString()
+                            } catch (e: Exception) {
+                                pkg
+                            }
+                            val isSys = checkIfSystemApp(pkg)
+                            rawAppBytesMap[pkg] = Triple(appName, existing + bytes, isSys)
+                        }
+                    }
+                }
+                mobileStats.close()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // Hardware TrafficStats Fallback Scanner
+        val installedApps = pm.getInstalledApplications(0)
         for (appInfo in installedApps) {
             val uid = appInfo.uid
             val pkgName = appInfo.packageName
@@ -218,7 +286,7 @@ class TrafficRepository(private val context: Context) {
 
             if (rx != TrafficStats.UNSUPPORTED.toLong() && tx != TrafficStats.UNSUPPORTED.toLong()) {
                 val total = (rx + tx).coerceAtLeast(0L)
-                if (total > 0) {
+                if (total > 0 && !rawAppBytesMap.containsKey(pkgName)) {
                     dbHelper.updateOrInsertAppLog(pkgName, appName, rx, tx)
                     val isSys = checkIfSystemApp(pkgName)
                     rawAppBytesMap[pkgName] = Triple(appName, total, isSys)
@@ -237,9 +305,7 @@ class TrafficRepository(private val context: Context) {
         if (rawAppBytesMap.isEmpty()) return emptyList()
 
         val sortedList = rawAppBytesMap.entries
-            .map { (pkg, triple) ->
-                Pair(pkg, triple)
-            }
+            .map { (pkg, triple) -> Pair(pkg, triple) }
             .sortedByDescending { it.second.second }
 
         val totalSumBytes = sortedList.sumOf { it.second.second }.toDouble().coerceAtLeast(1.0)
@@ -273,7 +339,7 @@ class TrafficRepository(private val context: Context) {
     }
 
     suspend fun getAppLeaderboard(): List<AppLeaderboardItem> = withContext(Dispatchers.IO) {
-        val liveApps = scanAndFetchLiveAppUsages()
+        val liveApps = scanAndFetchGlassWireAppUsages()
         if (liveApps.isNotEmpty()) {
             return@withContext liveApps.take(5)
         }
@@ -281,7 +347,7 @@ class TrafficRepository(private val context: Context) {
     }
 
     suspend fun getAllAppsLeaderboard(): List<AppLeaderboardItem> = withContext(Dispatchers.IO) {
-        val liveApps = scanAndFetchLiveAppUsages()
+        val liveApps = scanAndFetchGlassWireAppUsages()
         if (liveApps.isNotEmpty()) {
             return@withContext liveApps
         }

@@ -28,10 +28,11 @@ sealed class NetworkEvent {
 
 class TrafficMonitor(private val context: Context) {
 
-    private val dbHelper = TrafficDatabaseHelper(context)
-    private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-    private val networkStatsManager = context.getSystemService(Context.NETWORK_STATS_SERVICE) as? NetworkStatsManager
+    private val appContext = context.applicationContext
+    private val dbHelper = TrafficDatabaseHelper(appContext)
+    private val connectivityManager = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    private val notificationManager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private val networkStatsManager = appContext.getSystemService(Context.NETWORK_STATS_SERVICE) as? NetworkStatsManager
 
     private var lastTotalRxBytes = 0L
     private var lastTotalTxBytes = 0L
@@ -54,6 +55,12 @@ class TrafficMonitor(private val context: Context) {
 
         var instance: TrafficMonitor? = null
             private set
+
+        fun getInstance(context: Context): TrafficMonitor {
+            return instance ?: synchronized(this) {
+                instance ?: TrafficMonitor(context).also { instance = it }
+            }
+        }
     }
 
     init {
@@ -76,7 +83,7 @@ class TrafficMonitor(private val context: Context) {
 
     private fun postStatusBarNotification(title: String, body: String, notificationId: Int) {
         try {
-            val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            val builder = NotificationCompat.Builder(appContext, CHANNEL_ID)
                 .setSmallIcon(R.drawable.logo)
                 .setContentTitle(title)
                 .setContentText(body)
@@ -95,7 +102,7 @@ class TrafficMonitor(private val context: Context) {
             activeSessionSource = if (netType == "WIFI") "Wi-Fi" else "Mobile Data"
             sessionStartTotalBytes = getCurrentTotalBytes()
             _networkEventFlow.tryEmit(NetworkEvent.Connected(activeSessionSource))
-            postStatusBarNotification("📶 Plan Dee: Data Turned ON", "Connected via $activeSessionSource. Real-time telemetry active.", NOTIFICATION_ID_CONNECT)
+            postStatusBarNotification("Plan Dee: Data Turned ON", "Connected via $activeSessionSource. Real-time telemetry active.", NOTIFICATION_ID_CONNECT)
             scanInstalledAppsTraffic()
             sampleCurrentTraffic(netType)
         }
@@ -118,9 +125,9 @@ class TrafficMonitor(private val context: Context) {
                 activeSessionSource = if (netType == "WIFI") "Wi-Fi" else "Mobile Data"
                 sessionStartTotalBytes = getCurrentTotalBytes()
 
-                Log.d(TAG, "Network AVAILABLE: $activeSessionSource. Posting status bar notification...")
+                Log.d(TAG, "Network AVAILABLE: $activeSessionSource")
                 _networkEventFlow.tryEmit(NetworkEvent.Connected(activeSessionSource))
-                postStatusBarNotification("📶 Plan Dee: Data Turned ON", "Connected via $activeSessionSource. Real-time telemetry active.", NOTIFICATION_ID_CONNECT)
+                postStatusBarNotification("Plan Dee: Data Turned ON", "Connected via $activeSessionSource. Real-time telemetry active.", NOTIFICATION_ID_CONNECT)
 
                 sampleCurrentTraffic(netType)
                 scanInstalledAppsTraffic()
@@ -133,7 +140,7 @@ class TrafficMonitor(private val context: Context) {
 
                 Log.d(TAG, "Network LOST ($activeSessionSource). Session MB used: $sessionMb")
                 _networkEventFlow.tryEmit(NetworkEvent.Disconnected(activeSessionSource, sessionMb))
-                postStatusBarNotification("📉 Plan Dee: Data Turned OFF", "Session ended on $activeSessionSource: ${df.format(sessionMb)} MB transferred.", NOTIFICATION_ID_DISCONNECT)
+                postStatusBarNotification("Plan Dee: Data Turned OFF", "Session ended on $activeSessionSource: ${df.format(sessionMb)} MB transferred.", NOTIFICATION_ID_DISCONNECT)
 
                 if (isDataOnAnySource()) {
                     sampleCurrentTraffic("MOBILE")
@@ -177,63 +184,80 @@ class TrafficMonitor(private val context: Context) {
         return delta
     }
 
-    private fun getTodayStartTimestamp(): Long {
+    private fun getThirtyDayStartTimestamp(): Long {
         val cal = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
+            add(Calendar.DAY_OF_YEAR, -30)
         }
         return cal.timeInMillis
     }
 
+    /**
+     * GlassWire Architecture: High-speed querySummary across all system UIDs for Wi-Fi and Mobile
+     */
     fun scanInstalledAppsTraffic() {
         try {
-            val pm = context.packageManager
-            val installedApps = pm.getInstalledApplications(0)
-            val isUsageGranted = UsagePermissionBridge.isUsageAccessGranted(context)
+            val pm = appContext.packageManager
+            val isUsageGranted = UsagePermissionBridge.isUsageAccessGranted(appContext)
 
-            val startTime = getTodayStartTimestamp()
+            val startTime = getThirtyDayStartTimestamp()
             val endTime = System.currentTimeMillis()
 
+            val uidTrafficMap = mutableMapOf<Int, Long>()
+
+            if (isUsageGranted && networkStatsManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try {
+                    val bucket = NetworkStats.Bucket()
+
+                    val wifiStats = networkStatsManager.querySummary(ConnectivityManager.TYPE_WIFI, null, startTime, endTime)
+                    while (wifiStats.hasNextBucket()) {
+                        wifiStats.getNextBucket(bucket)
+                        val uid = bucket.uid
+                        val bytes = bucket.rxBytes + bucket.txBytes
+                        if (bytes > 0) {
+                            uidTrafficMap[uid] = (uidTrafficMap[uid] ?: 0L) + bytes
+                        }
+                    }
+                    wifiStats.close()
+
+                    val mobileStats = networkStatsManager.querySummary(ConnectivityManager.TYPE_MOBILE, null, startTime, endTime)
+                    while (mobileStats.hasNextBucket()) {
+                        mobileStats.getNextBucket(bucket)
+                        val uid = bucket.uid
+                        val bytes = bucket.rxBytes + bucket.txBytes
+                        if (bytes > 0) {
+                            uidTrafficMap[uid] = (uidTrafficMap[uid] ?: 0L) + bytes
+                        }
+                    }
+                    mobileStats.close()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error running querySummary across UIDs", e)
+                }
+            }
+
+            // Map UIDs to package names and update SQLite
+            for ((uid, totalBytes) in uidTrafficMap) {
+                val packages = pm.getPackagesForUid(uid)
+                if (!packages.isNullOrEmpty()) {
+                    val pkgName = packages[0]
+                    val appName = try {
+                        val appInfo = pm.getApplicationInfo(pkgName, 0)
+                        pm.getApplicationLabel(appInfo).toString()
+                    } catch (e: Exception) {
+                        pkgName
+                    }
+                    dbHelper.updateOrInsertAppLog(pkgName, appName, totalBytes / 2, totalBytes / 2)
+                }
+            }
+
+            // Fallback scanner for installed apps using TrafficStats
+            val installedApps = pm.getInstalledApplications(0)
             for (appInfo in installedApps) {
                 val uid = appInfo.uid
                 val pkgName = appInfo.packageName
                 val appName = pm.getApplicationLabel(appInfo).toString()
 
-                var rx = 0L
-                var tx = 0L
-
-                if (isUsageGranted && networkStatsManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    try {
-                        val bucketWifi = networkStatsManager.queryDetailsForUid(
-                            ConnectivityManager.TYPE_WIFI, null, startTime, endTime, uid
-                        )
-                        val bucket = NetworkStats.Bucket()
-                        while (bucketWifi.hasNextBucket()) {
-                            bucketWifi.getNextBucket(bucket)
-                            rx += bucket.rxBytes
-                            tx += bucket.txBytes
-                        }
-                        bucketWifi.close()
-
-                        val bucketMobile = networkStatsManager.queryDetailsForUid(
-                            ConnectivityManager.TYPE_MOBILE, null, startTime, endTime, uid
-                        )
-                        while (bucketMobile.hasNextBucket()) {
-                            bucketMobile.getNextBucket(bucket)
-                            rx += bucket.rxBytes
-                            tx += bucket.txBytes
-                        }
-                        bucketMobile.close()
-                    } catch (e: Exception) {
-                        rx = TrafficStats.getUidRxBytes(uid)
-                        tx = TrafficStats.getUidTxBytes(uid)
-                    }
-                } else {
-                    rx = TrafficStats.getUidRxBytes(uid)
-                    tx = TrafficStats.getUidTxBytes(uid)
-                }
+                val rx = TrafficStats.getUidRxBytes(uid)
+                val tx = TrafficStats.getUidTxBytes(uid)
 
                 if (rx != TrafficStats.UNSUPPORTED.toLong() && tx != TrafficStats.UNSUPPORTED.toLong() && (rx + tx) > 0) {
                     dbHelper.updateOrInsertAppLog(pkgName, appName, rx, tx)
