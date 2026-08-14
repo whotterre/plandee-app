@@ -215,7 +215,7 @@ class TrafficRepository(private val context: Context) {
                 sharePercentText = sharePercentText,
                 isSystemApp = isSys,
                 explanationText = getAppExplanation(appLog.packageName, appLog.appName, isSys),
-                categoryText = if (isSys) "⚙️ System Service" else "📱 User App"
+                categoryText = if (isSys) "⚙️" else "📱"
             )
         }
     }
@@ -246,7 +246,7 @@ class TrafficRepository(private val context: Context) {
                 sharePercentText = sharePercentText,
                 isSystemApp = isSys,
                 explanationText = getAppExplanation(appLog.packageName, appLog.appName, isSys),
-                categoryText = if (isSys) "⚙️ System Service" else "📱 User App"
+                categoryText = if (isSys) "⚙️" else "📱"
             )
         }
     }

@@ -6,11 +6,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.plandee.ui.screens.DashboardScreen
+import com.example.plandee.ui.screens.SplashScreen
 import com.example.plandee.ui.screens.auth.AuthScreen
 import com.example.plandee.ui.screens.auth.OnboardingStep1Screen
 import com.example.plandee.ui.screens.auth.OnboardingStep2Screen
 
 object PlanDeeRoutes {
+    const val Splash = "splash"
     const val Auth = "auth"
     const val OnboardingStep1 = "onboarding_step1"
     const val OnboardingStep2 = "onboarding_step2"
@@ -22,12 +24,29 @@ object PlanDeeRoutes {
 @Composable
 fun PlanDeeNavGraph(
     navController: NavHostController = rememberNavController(),
-    startDestination: String = PlanDeeRoutes.Auth
+    startDestination: String = PlanDeeRoutes.Splash
 ) {
     NavHost(
         navController = navController,
         startDestination = startDestination
     ) {
+        composable(PlanDeeRoutes.Splash) {
+            SplashScreen(
+                onNavigateToDashboard = {
+                    navController.navigate(PlanDeeRoutes.Dashboard) {
+                        popUpTo(PlanDeeRoutes.Splash) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+                onNavigateToOnboarding = {
+                    navController.navigate(PlanDeeRoutes.Auth) {
+                        popUpTo(PlanDeeRoutes.Splash) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
         composable(PlanDeeRoutes.Auth) {
             AuthScreen(
                 onLoginSuccess = {

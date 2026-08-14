@@ -15,17 +15,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Leaderboard
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -53,12 +52,14 @@ enum class DashboardTab(val title: String, val icon: ImageVector) {
     PRO("Pro", Icons.Default.Star)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel = viewModel()
 ) {
     var activeTab by remember { mutableStateOf(DashboardTab.USAGE) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
 
     var activeBannerMessage by remember { mutableStateOf<String?>(null) }
     var isBannerConnected by remember { mutableStateOf(true) }
@@ -70,12 +71,12 @@ fun DashboardScreen(
             when (event) {
                 is NetworkEvent.Connected -> {
                     isBannerConnected = true
-                    activeBannerMessage = "📶 Data Turned ON via ${event.source}"
+                    activeBannerMessage = "Data Turned ON via ${event.source}"
                 }
                 is NetworkEvent.Disconnected -> {
                     isBannerConnected = false
                     val mbText = df.format(event.sessionMb)
-                    activeBannerMessage = "📉 Data Turned OFF (${event.source}): $mbText MB used"
+                    activeBannerMessage = "Data Turned OFF (${event.source}): $mbText MB used"
                 }
             }
             delay(4000)
@@ -131,7 +132,7 @@ fun DashboardScreen(
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = if (uiState.isPro) "⚡ DEE PRO" else "🪙 ${uiState.tokens} TOKENS",
+                                        text = if (uiState.isPro) "DEE PRO" else "${uiState.tokens} TOKENS",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.Bold,
                                             color = if (uiState.isPro) NeonEmeraldGlow else RetroAmberGold,
@@ -140,24 +141,6 @@ fun DashboardScreen(
                                         )
                                     )
                                 }
-                            }
-
-                            Spacer(modifier = Modifier.width(10.dp))
-
-                            IconButton(
-                                onClick = { viewModel.forceSyncData() },
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(RetroCardSurfaceElevated)
-                                    .border(1.dp, RetroBorderMetallic, CircleShape)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = "Sync Telemetry",
-                                    tint = NeonEmeraldGlow,
-                                    modifier = Modifier.size(18.dp)
-                                )
                             }
 
                             Spacer(modifier = Modifier.width(10.dp))
@@ -277,7 +260,10 @@ fun DashboardScreen(
                 }
             }
         ) { innerPadding ->
-            Box(
+            // NATIVE PULL-TO-REFRESH SWIPE CONTAINER
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { viewModel.forceSyncData() },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)

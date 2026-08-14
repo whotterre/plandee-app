@@ -197,7 +197,7 @@ fun DashboardTabAuditor(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = if (isPro) "⚡ Pro Member: Unlimited Access" else "Tokens Available: $tokens",
+                    text = if (isPro) "Pro Member: Unlimited Access" else "Tokens Available: $tokens",
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = if (isPro) NeonEmeraldGlow else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium
@@ -314,7 +314,7 @@ fun DashboardTabAuditor(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // TARGET BUDGET SLIDER CARD
+        // TARGET BUDGET SLIDER CARD - CONTINUOUS SMOOTH TRACK (NO DOTS)
         RetroTactileCard(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -341,13 +341,13 @@ fun DashboardTabAuditor(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Smooth continuous slider (no discrete dots)
             Slider(
                 value = targetBudget,
                 onValueChange = {
                     targetBudget = it
                 },
                 valueRange = 500f..20000f,
-                steps = 39,
                 colors = SliderDefaults.colors(
                     thumbColor = NeonEmeraldGlow,
                     activeTrackColor = NeonEmeraldGlow,
@@ -384,7 +384,7 @@ fun DashboardTabAuditor(
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = "✨ Recommend Data Plan (-1 Token)",
+                    text = "Recommend Data Plan (-1 Token)",
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp

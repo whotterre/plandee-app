@@ -40,6 +40,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val _uiState = MutableStateFlow(DashboardUiState(tokens = sessionManager.getTokens()))
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     val networkEventFlow: SharedFlow<NetworkEvent> = TrafficMonitor.instance?.networkEventFlow
         ?: MutableSharedFlow()
 
@@ -91,8 +94,11 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun forceSyncData(networkType: String? = null) {
         viewModelScope.launch {
+            _isRefreshing.value = true
             TrafficMonitor.instance?.forceSampling(networkType)
             refreshData()
+            delay(600)
+            _isRefreshing.value = false
         }
     }
 }
