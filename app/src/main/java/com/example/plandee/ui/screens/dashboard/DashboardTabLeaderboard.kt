@@ -54,11 +54,13 @@ fun DashboardTabLeaderboard(
     val rawFullList = if (allAppsItems.isNotEmpty()) allAppsItems else rawTopItems
 
     val topItems = remember(rawTopItems, filterUserAppsOnly) {
-        if (filterUserAppsOnly) rawTopItems.filter { !it.isSystemApp } else rawTopItems
+        val filtered = if (filterUserAppsOnly) rawTopItems.filter { !it.isSystemApp } else rawTopItems
+        filtered.mapIndexed { idx, item -> item.copy(rank = "#${idx + 1}") }
     }
 
     val fullAppList = remember(rawFullList, filterUserAppsOnly) {
-        if (filterUserAppsOnly) rawFullList.filter { !it.isSystemApp } else rawFullList
+        val filtered = if (filterUserAppsOnly) rawFullList.filter { !it.isSystemApp } else rawFullList
+        filtered.mapIndexed { idx, item -> item.copy(rank = "#${idx + 1}") }
     }
 
     Column(

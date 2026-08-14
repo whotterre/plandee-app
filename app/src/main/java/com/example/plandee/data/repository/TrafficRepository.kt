@@ -178,9 +178,24 @@ class TrafficRepository(private val context: Context) {
 
     private fun checkIfSystemApp(packageName: String): Boolean {
         val pkgLower = packageName.lowercase()
-        if (pkgLower.startsWith("com.android.") || pkgLower.startsWith("com.google.android.gms") || pkgLower.startsWith("com.google.android.gsf")) {
+
+        // 1. Core background daemons with no user UI
+        if (pkgLower.contains("android.gms") ||
+            pkgLower.contains("android.gsf") ||
+            pkgLower.startsWith("com.android.providers") ||
+            pkgLower.startsWith("com.android.systemui") ||
+            pkgLower == "android"
+        ) {
             return true
         }
+
+        // 2. Apps with a launcher intent (can be opened by user from app drawer: YouTube, Chrome, Gmail, WhatsApp) are USER APPS!
+        val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
+        if (launchIntent != null) {
+            return false
+        }
+
+        // 3. Fallback to system flag only if no launch intent exists
         return try {
             val appInfo = context.packageManager.getApplicationInfo(packageName, 0)
             (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
