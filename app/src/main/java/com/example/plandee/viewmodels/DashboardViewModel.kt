@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.plandee.data.monetization.ProRepository
 import com.example.plandee.data.repository.AppLeaderboardItem
 import com.example.plandee.data.repository.DailyConsumptionBar
+import com.example.plandee.data.repository.MonthlyTimelineBar
 import com.example.plandee.data.repository.TrafficRepository
 import com.example.plandee.data.repository.TrafficSummary
 import com.example.plandee.data.security.SessionManager
@@ -20,10 +21,14 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.Calendar
+import kotlin.time.Duration.Companion.milliseconds
 
 data class DashboardUiState(
     val summary: TrafficSummary? = null,
     val dailyConsumption: List<DailyConsumptionBar> = emptyList(),
+    val monthlyTimeline: List<MonthlyTimelineBar> = emptyList(),
+    val selectedDayIndex: Int = 29, // Default to Today (last item in 30-day timeline)
     val leaderboardItems: List<AppLeaderboardItem> = emptyList(),
     val allAppsItems: List<AppLeaderboardItem> = emptyList(),
     val isPro: Boolean = false,
@@ -62,8 +67,37 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         // Real-Time 2-second Telemetry Ticker Loop
         viewModelScope.launch {
             while (isActive) {
-                delay(2000)
+                delay(2000.milliseconds)
                 refreshData()
+            }
+        }
+    }
+
+    fun selectTimelineDay(index: Int) {
+        val timeline = _uiState.value.monthlyTimeline
+        if (index in timeline.indices) {
+            val selectedBar = timeline[index]
+            _uiState.value = _uiState.value.copy(selectedDayIndex = index)
+
+            viewModelScope.launch {
+                val startCal = Calendar.getInstance().apply {
+                    timeInMillis = selectedBar.dateMillis
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+
+                val endCal = startCal.clone() as Calendar
+                endCal.set(Calendar.HOUR_OF_DAY, 23)
+                endCal.set(Calendar.MINUTE, 59)
+                endCal.set(Calendar.SECOND, 59)
+
+                val dayLeaderboard = repository.getAppLeaderboardForDayRange(startCal.timeInMillis, endCal.timeInMillis)
+                _uiState.value = _uiState.value.copy(
+                    leaderboardItems = dayLeaderboard.take(5),
+                    allAppsItems = dayLeaderboard
+                )
             }
         }
     }
@@ -72,6 +106,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             val summary = repository.getTrafficSummary()
             val daily = repository.getDailyConsumption()
+            val timeline = repository.getMonthlyTimelineConsumption(days = 30)
+
+            val currentIndex = _uiState.value.selectedDayIndex.coerceIn(0, (timeline.size - 1).coerceAtLeast(0))
+
             val leaderboard = repository.getAppLeaderboard()
             val allApps = repository.getAllAppsLeaderboard()
             val tokens = sessionManager.getTokens()
@@ -79,6 +117,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             _uiState.value = _uiState.value.copy(
                 summary = summary,
                 dailyConsumption = daily,
+                monthlyTimeline = timeline,
+                selectedDayIndex = if (timeline.isNotEmpty() && currentIndex >= timeline.size) timeline.size - 1 else currentIndex,
                 leaderboardItems = leaderboard,
                 allAppsItems = allApps,
                 tokens = tokens
@@ -97,7 +137,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             _isRefreshing.value = true
             TrafficMonitor.instance?.forceSampling(networkType)
             refreshData()
-            delay(600)
+            delay(600.milliseconds)
             _isRefreshing.value = false
         }
     }

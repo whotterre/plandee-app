@@ -1,9 +1,13 @@
 package com.example.plandee.ui.screens.dashboard
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,6 +19,7 @@ import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,12 +27,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.plandee.R
-import com.example.plandee.data.repository.DailyConsumptionBar
+import com.example.plandee.data.repository.AppLeaderboardItem
+import com.example.plandee.data.repository.MonthlyTimelineBar
 import com.example.plandee.data.repository.TrafficSummary
 import com.example.plandee.ui.components.RetroTactileCard
 import com.example.plandee.ui.theme.*
@@ -35,8 +39,11 @@ import com.example.plandee.ui.theme.*
 @Composable
 fun DashboardTabHome(
     summary: TrafficSummary?,
-    dailyBars: List<DailyConsumptionBar> = emptyList(),
-    onNavigateToAuditor: () -> Unit
+    timelineBars: List<MonthlyTimelineBar> = emptyList(),
+    selectedDayIndex: Int = 29,
+    leaderboardItems: List<AppLeaderboardItem> = emptyList(),
+    onDaySelected: (Int) -> Unit = {},
+    onNavigateToAuditor: () -> Unit = {}
 ) {
     val totalGbText = remember(summary) { summary?.totalGb?.toString() ?: "0.0" }
     val wifiPercent = remember(summary) { summary?.wifiPercent ?: 50 }
@@ -46,16 +53,20 @@ fun DashboardTabHome(
     val dailyBurnText = remember(summary) { summary?.avgDailyBurnGb?.toString() ?: "0.0" }
     val peakWindowText = remember(summary) { summary?.peakWindow ?: "Night Owl" }
 
-    val bars = if (dailyBars.isNotEmpty()) dailyBars else remember {
-        listOf(
-            DailyConsumptionBar("Mon", 1.2f, 0.4f),
-            DailyConsumptionBar("Tue", 1.8f, 0.6f),
-            DailyConsumptionBar("Wed", 1.5f, 0.5f),
-            DailyConsumptionBar("Thu", 2.1f, 0.8f),
-            DailyConsumptionBar("Fri", 2.4f, 0.9f),
-            DailyConsumptionBar("Sat", 1.4f, 0.6f),
-            DailyConsumptionBar("Sun", 0.8f, 0.4f)
-        )
+    val timelineState = rememberLazyListState()
+
+    // REQUIREMENT 2: AUTO-SCROLL TIMELINE TO CURRENT DAY (TODAY) ON LOAD
+    LaunchedEffect(timelineBars.size) {
+        if (timelineBars.isNotEmpty()) {
+            val targetIndex = (timelineBars.size - 1).coerceAtLeast(0)
+            timelineState.scrollToItem(targetIndex)
+        }
+    }
+
+    val selectedBar = remember(timelineBars, selectedDayIndex) {
+        if (timelineBars.isNotEmpty() && selectedDayIndex in timelineBars.indices) {
+            timelineBars[selectedDayIndex]
+        } else null
     }
 
     Column(
@@ -105,14 +116,14 @@ fun DashboardTabHome(
 
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         drawArc(
-                            color = NeonCyanGlow,
+                            color = DeeSkyBlue, // Sky Blue #38BDF8 / #06B6D4
                             startAngle = -90f,
                             sweepAngle = wifiSweep,
                             useCenter = false,
                             style = Stroke(width = 24.dp.toPx(), cap = StrokeCap.Round)
                         )
                         drawArc(
-                            color = NeonRoseAccent,
+                            color = NeonRoseAccent, // Mobile Pink #EC4899
                             startAngle = -90f + wifiSweep + 4f,
                             sweepAngle = (360f - wifiSweep - 8f).coerceAtLeast(0f),
                             useCenter = false,
@@ -148,7 +159,7 @@ fun DashboardTabHome(
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
                     LegendItem(
-                        color = NeonCyanGlow,
+                        color = DeeSkyBlue,
                         label = "Wi-Fi ($wifiPercent%)",
                         value = "$wifiGbText GB"
                     )
@@ -164,7 +175,7 @@ fun DashboardTabHome(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // RETRO TACTILE DAILY STACKED BAR CHART
+        // REQUIREMENT 2: 30-DAY HORIZONTALLY SCROLLABLE MONTHLY TIMELINE GRAPH WITH STACKED BARS
         RetroTactileCard(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -173,54 +184,89 @@ fun DashboardTabHome(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Daily Traffic Breakdown",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                Column {
+                    Text(
+                        text = "Monthly Timeline (30 Days)",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     )
-                )
-                Text(
-                    text = "7 DAYS",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        color = NeonEmeraldGlow,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (selectedBar != null) "Selected: ${selectedBar.dateLabel} (${selectedBar.dayLabel})" else "Tap any day to view rankings",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = NeonEmeraldGlow,
+                            fontWeight = FontWeight.Bold
+                        )
                     )
-                )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = NeonEmeraldGlow.copy(alpha = 0.15f)
+                ) {
+                    Text(
+                        text = "30 DAYS",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = NeonEmeraldGlow,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            val maxGb = remember(bars) { bars.maxOfOrNull { it.wifiGb + it.mobileGb }?.coerceAtLeast(2f) ?: 3f }
+            val maxGb = remember(timelineBars) {
+                timelineBars.maxOfOrNull { it.wifiGb + it.mobileGb }?.coerceAtLeast(1.5f) ?: 2f
+            }
 
-            Row(
+            // HORIZONTALLY SCROLLABLE TIMELINE GRAPH WITH LAZYROW & STACKED BARS
+            LazyRow(
+                state = timelineState,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .height(160.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.Bottom
             ) {
-                bars.forEach { bar ->
+                itemsIndexed(timelineBars) { index, bar ->
+                    val isSelected = index == selectedDayIndex
+                    val totalBarGb = bar.wifiGb + bar.mobileGb
+                    val totalHeightRatio = (totalBarGb / maxGb).coerceIn(0.12f, 1f)
+
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .width(28.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) NeonEmeraldGlow.copy(alpha = 0.2f) else Color.Transparent)
+                            .border(
+                                1.5.dp,
+                                if (isSelected) NeonEmeraldGlow else Color.Transparent,
+                                RoundedCornerShape(8.dp)
+                            )
+                            .clickable { onDaySelected(index) }
+                            .padding(vertical = 4.dp)
                     ) {
-                        val totalBarGb = bar.wifiGb + bar.mobileGb
-                        val totalHeightRatio = (totalBarGb / maxGb).coerceIn(0.1f, 1f)
-
+                        // STACKED BAR: Wi-Fi Data (Sky Blue #38BDF8) + Mobile Data (Pink #EC4899)
                         Column(
                             modifier = Modifier
-                                .fillMaxHeight(totalHeightRatio)
-                                .width(14.dp)
+                                .height(100.dp * totalHeightRatio)
+                                .width(12.dp)
                                 .clip(RoundedCornerShape(6.dp))
                         ) {
+                            // WI-FI DATA (Sky Blue #38BDF8 / DeeSkyBlue)
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .weight(bar.wifiGb.coerceAtLeast(0.1f))
-                                    .background(NeonCyanGlow)
+                                    .background(DeeSkyBlue)
                             )
+                            // MOBILE DATA (Pink #EC4899 / NeonRoseAccent)
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -232,12 +278,105 @@ fun DashboardTabHome(
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
-                            text = bar.day,
+                            text = bar.dateLabel.take(2), // Day number e.g. "14", "15"
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (isSelected) NeonEmeraldGlow else MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                             )
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // REQUIREMENT 2: DAY-TAP LEADERBOARD LIST DISPLAY FOR SELECTED DAY
+        RetroTactileCard(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (selectedBar != null && selectedBar.isToday) "Today's App Rankings" else "Rankings for ${selectedBar?.dateLabel ?: "Selected Day"}",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                )
+
+                Text(
+                    text = "${leaderboardItems.size} Apps",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = NeonEmeraldGlow,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            if (leaderboardItems.isEmpty()) {
+                Text(
+                    text = "No app traffic recorded for this specific day.",
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    leaderboardItems.take(5).forEach { item ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = item.rank,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (item.rank == "#1") NeonEmeraldGlow else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = item.name,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    )
+                                    Text(
+                                        text = item.sharePercentText,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = NeonCyanGlow,
+                                            fontSize = 10.sp
+                                        )
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = item.usageGb,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            )
+                        }
+                        LinearProgressIndicator(
+                            progress = { item.progress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+                            color = if (item.rank == "#1") NeonEmeraldGlow else DeeSkyBlue,
+                            trackColor = RetroTactileBg
                         )
                     }
                 }

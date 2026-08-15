@@ -35,7 +35,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.plandee.R
 import com.example.plandee.data.telemetry.NetworkEvent
-import com.example.plandee.ui.screens.dashboard.DashboardTabAnalytics
 import com.example.plandee.ui.screens.dashboard.DashboardTabAuditor
 import com.example.plandee.ui.screens.dashboard.DashboardTabHome
 import com.example.plandee.ui.screens.dashboard.DashboardTabLeaderboard
@@ -277,7 +276,10 @@ fun DashboardScreen(
                     )
                     DashboardTab.USAGE -> DashboardTabHome(
                         summary = uiState.summary,
-                        dailyBars = uiState.dailyConsumption,
+                        timelineBars = uiState.monthlyTimeline,
+                        selectedDayIndex = uiState.selectedDayIndex,
+                        leaderboardItems = uiState.leaderboardItems,
+                        onDaySelected = { viewModel.selectTimelineDay(it) },
                         onNavigateToAuditor = { activeTab = DashboardTab.AUDITOR }
                     )
                     DashboardTab.LEADERBOARD -> DashboardTabLeaderboard(
