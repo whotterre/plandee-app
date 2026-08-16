@@ -214,9 +214,6 @@ class TrafficRepository(private val context: Context) {
         )
     }
 
-    /**
-     * Requirement 2: 30-Day Monthly Timeline Data Generation
-     */
     suspend fun getMonthlyTimelineConsumption(days: Int = 30): List<MonthlyTimelineBar> = withContext(Dispatchers.IO) {
         val netStatsManager = context.getSystemService(Context.NETWORK_STATS_SERVICE) as? NetworkStatsManager
         val isUsageGranted = UsagePermissionBridge.isUsageAccessGranted(context)
@@ -260,7 +257,6 @@ class TrafficRepository(private val context: Context) {
                 }
             }
 
-            // Fallback synthetic pattern if device stats are 0
             if (wifiBytes == 0L && mobileBytes == 0L) {
                 val factor = (0.5f + (i % 5) * 0.3f)
                 wifiBytes = (factor * 1024 * 1024 * 500).toLong()
@@ -308,15 +304,12 @@ class TrafficRepository(private val context: Context) {
             pkgLower.contains("google.android.gms") || pkgLower.contains("gsf") || nameLower.contains("google play services") ->
                 "Essential Android system service powering push notifications, Google Play sync, & Location Services."
             isSystemApp ->
-                "Android system process running in the background to handle core OS features."
+                "Combined background data consumed by core Android system daemons, OS updates, and framework services."
             else ->
                 "User-installed application on your device. Tap 'Restrict Background Data' to control data usage."
         }
     }
 
-    /**
-     * Requirement 1: Resolve pre-installed system apps properly so YouTube, Chrome, Play Store are identified as User Apps
-     */
     private fun checkIfSystemApp(packageName: String): Boolean {
         val pkgLower = packageName.lowercase()
 
@@ -358,7 +351,7 @@ class TrafficRepository(private val context: Context) {
     }
 
     /**
-     * Requirement 1: Device-level querySummary, Filter out totalBytes == 0, Sort strictly descending, Accurate percentage
+     * Requirement: Aggregates system apps into a single category: "System Apps Usage"
      */
     private fun scanAndFetchGlassWireAppUsages(
         startTimeMillis: Long = getThirtyDayStartTimestamp(),
@@ -452,19 +445,39 @@ class TrafficRepository(private val context: Context) {
             }
         }
 
-        // REQUIREMENT 1: FILTER OUT ALL APPLICATIONS WITH totalBytes == 0 (Mi Connect, AI subtitles, etc.)
         val activeAppsMap = rawAppBytesMap.filter { it.value.second > 0L }
-
         if (activeAppsMap.isEmpty()) return emptyList()
 
-        // REQUIREMENT 1: SORT OUTPUT STRICTLY DESCENDING BY totalBytes
-        val sortedList = activeAppsMap.entries
-            .map { (pkg, triple) -> Pair(pkg, triple) }
-            .sortedByDescending { it.second.second }
+        // Separate user apps from system apps
+        val userAppsList = mutableListOf<Pair<String, Triple<String, Long, Boolean>>>()
+        var aggregatedSystemBytes = 0L
 
+        for ((pkg, triple) in activeAppsMap) {
+            val isSys = triple.third
+            if (isSys) {
+                aggregatedSystemBytes += triple.second
+            } else {
+                userAppsList.add(Pair(pkg, triple))
+            }
+        }
+
+        val aggregatedEntitiesList = mutableListOf<Pair<String, Triple<String, Long, Boolean>>>()
+        aggregatedEntitiesList.addAll(userAppsList)
+
+        // Aggregated System Apps Usage category row
+        if (aggregatedSystemBytes > 0L) {
+            aggregatedEntitiesList.add(
+                Pair(
+                    "com.android.system.aggregated",
+                    Triple("System Apps Usage", aggregatedSystemBytes, true)
+                )
+            )
+        }
+
+        // Sort strictly descending by totalBytes
+        val sortedList = aggregatedEntitiesList.sortedByDescending { it.second.second }
         val totalSumBytes = sortedList.sumOf { it.second.second }.toDouble().coerceAtLeast(1.0)
 
-        // REQUIREMENT 1: CALCULATE PERCENTAGE CONTRIBUTION ACCURATELY AGAINST TOTAL DEVICE BYTES
         return sortedList.mapIndexed { index, entry ->
             val pkgName = entry.first
             val appName = entry.second.first
