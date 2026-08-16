@@ -1,52 +1,156 @@
 package com.example.plandee.data.network
 
+import com.google.gson.annotations.SerializedName
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Query
 
-data class TelemetrySyncRequest(
-    val userId: String,
-    val totalMobileGb: Double,
-    val totalWifiGb: Double,
-    val dailyBurnGb: Double,
-    val topApps: List<AppTelemetryPayload>
+// Auth DTOs
+data class RegisterRequest(
+    val email: String,
+    val password: String,
+    val country: String = "Nigeria"
 )
 
-data class AppTelemetryPayload(
-    val packageName: String,
-    val appName: String,
-    val bytesUsed: Long,
-    val sharePercentage: Double
+data class LoginRequest(
+    val email: String,
+    val password: String
+)
+
+data class AuthResponse(
+    val status: String,
+    val token: String,
+    @SerializedName("refresh_token") val refreshToken: String?,
+    val message: String?
+)
+
+// Telemetry Ingestion DTOs (matching Go backend TelemetryIngestionDto)
+data class UsageHistoryPayload(
+    @SerializedName("connectionType") val connectionType: String,
+    @SerializedName("networkCarrier") val networkCarrier: String,
+    @SerializedName("appName") val appName: String,
+    @SerializedName("appPackageName") val appPackageName: String,
+    @SerializedName("bytesUsed") val bytesUsed: Long,
+    @SerializedName("startTime") val startTime: String,
+    @SerializedName("endTime") val endTime: String
+)
+
+data class TelemetryIngestionRequest(
+    val data: List<UsageHistoryPayload>
 )
 
 data class TelemetrySyncResponse(
-    val success: Boolean,
-    val message: String,
-    val syncedAtMillis: Long
+    val message: String?
 )
 
-data class TariffPlanResponse(
+// Telemetry Summary DTOs
+data class TotalStatsDto(
+    @SerializedName("totalBytes") val totalBytes: Long,
+    @SerializedName("totalGB") val totalGB: Double,
+    @SerializedName("mobileBytes") val mobileBytes: Long,
+    @SerializedName("mobileGB") val mobileGB: Double,
+    @SerializedName("wifiBytes") val wifiBytes: Long,
+    @SerializedName("wifiGB") val wifiGB: Double,
+    @SerializedName("mobilePercentage") val mobilePercentage: Double,
+    @SerializedName("wifiPercentage") val wifiPercentage: Double
+)
+
+data class GetSummaryResponseDto(
+    val period: String,
+    val totals: List<TotalStatsDto>?
+)
+
+// Leaderboard DTOs
+data class LeaderboardAppEntryDto(
+    @SerializedName("app_name") val appName: String,
+    @SerializedName("app_package_name") val appPackageName: String,
+    @SerializedName("total_bytes") val totalBytes: Long,
+    @SerializedName("total_mb") val totalMb: Double,
+    @SerializedName("total_gb") val totalGb: Double,
+    val percentage: Double
+)
+
+data class LeaderboardResponseDto(
+    val status: String,
+    val data: List<LeaderboardAppEntryDto>?
+)
+
+// ML Recommendation DTOs (matching Go backend MatchRecommendationRequestDto & MatchRecommendationResponseDto)
+data class MatchRecommendationRequest(
+    @SerializedName("active_sims") val activeSims: List<String>,
+    @SerializedName("monthly_budget_ngn") val monthlyBudgetNgn: Double,
+    @SerializedName("total_30day_bytes") val total30DayBytes: Long,
+    @SerializedName("night_usage_percentage") val nightUsagePercentage: Double,
+    @SerializedName("top_app_categories") val topAppCategories: List<String>
+)
+
+data class MatchedPlanResultDto(
+    @SerializedName("plan_id") val planId: String,
     val carrier: String,
-    val planName: String,
-    val priceNaira: Int,
-    val dataGb: Double,
-    val durationDays: Int,
-    val ussdCode: String
+    @SerializedName("plan_name") val planName: String,
+    val price: Double,
+    @SerializedName("validity_days") val validityDays: Int,
+    @SerializedName("data_allowance_gb") val dataAllowanceGb: Double,
+    @SerializedName("match_score_percentage") val matchScorePercentage: Int,
+    @SerializedName("ussd_code") val ussdCode: String,
+    val tags: List<String>?,
+    @SerializedName("estimated_monthly_savings") val estimatedMonthlySavings: Double
+)
+
+data class MatchRecommendationResponse(
+    @SerializedName("analysis_summary") val analysisSummary: String,
+    @SerializedName("tokens_remaining") val tokensRemaining: Int,
+    @SerializedName("is_pro") val isPro: Boolean,
+    @SerializedName("featured_plan") val featuredPlan: MatchedPlanResultDto?,
+    @SerializedName("alternative_plans") val alternativePlans: List<MatchedPlanResultDto>?
+)
+
+// Ad Reward DTOs
+data class AdRewardRequest(
+    @SerializedName("ad_unit_id") val adUnitId: String,
+    val token: String
+)
+
+data class AdRewardResponse(
+    val status: String,
+    val message: String?,
+    @SerializedName("remaining_tokens") val remainingTokens: Int?
 )
 
 interface ApiService {
 
-    @POST("api/v1/telemetry/sync")
+    @POST("v1/auth/register")
+    suspend fun register(
+        @Body request: RegisterRequest
+    ): Response<AuthResponse>
+
+    @POST("v1/auth/login")
+    suspend fun login(
+        @Body request: LoginRequest
+    ): Response<AuthResponse>
+
+    @POST("v1/telemetry/sync")
     suspend fun syncTelemetry(
-        @Body payload: TelemetrySyncRequest
+        @Body request: TelemetryIngestionRequest
     ): Response<TelemetrySyncResponse>
 
-    @GET("api/v1/tariffs/recommendations")
-    suspend fun getTariffRecommendations(
-        @Query("carrier") carrier: String,
-        @Query("duration") duration: String,
-        @Query("budget") budget: Int
-    ): Response<List<TariffPlanResponse>>
+    @GET("v1/telemetry/summary")
+    suspend fun getTelemetrySummary(
+        @Query("period") period: String = "30d"
+    ): Response<GetSummaryResponseDto>
+
+    @GET("v1/telemetry/leaderboard")
+    suspend fun getLeaderboard(): Response<LeaderboardResponseDto>
+
+    @POST("v1/recommendations/match")
+    suspend fun matchRecommendation(
+        @Body request: MatchRecommendationRequest
+    ): Response<MatchRecommendationResponse>
+
+    @POST("v1/rewards/ad-reward")
+    suspend fun rewardAdToken(
+        @Body request: AdRewardRequest
+    ): Response<AdRewardResponse>
 }

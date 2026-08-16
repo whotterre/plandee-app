@@ -4,6 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.plandee.data.monetization.ProRepository
+import com.example.plandee.data.network.MatchRecommendationRequest
+import com.example.plandee.data.network.MatchRecommendationResponse
+import com.example.plandee.data.network.RetrofitClient
 import com.example.plandee.data.repository.AppLeaderboardItem
 import com.example.plandee.data.repository.DailyConsumptionBar
 import com.example.plandee.data.repository.MonthlyTimelineBar
@@ -33,7 +36,8 @@ data class DashboardUiState(
     val allAppsItems: List<AppLeaderboardItem> = emptyList(),
     val isPro: Boolean = false,
     val tokens: Int = 2,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val mlRecommendation: MatchRecommendationResponse? = null
 )
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
@@ -132,10 +136,40 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun runMLRecommendationMatch(carrier: String = "MTN", budgetNgn: Double = 7500.0) {
+        viewModelScope.launch {
+            try {
+                val summary = repository.getTrafficSummary()
+                val totalBytes = (summary.totalGb * 1024 * 1024 * 1024).toLong()
+
+                val request = MatchRecommendationRequest(
+                    activeSims = listOf(carrier),
+                    monthlyBudgetNgn = budgetNgn,
+                    total30DayBytes = totalBytes,
+                    nightUsagePercentage = 40.0,
+                    topAppCategories = listOf("Streaming", "Social")
+                )
+
+                val apiService = RetrofitClient.getApiService(getApplication())
+                val response = apiService.matchRecommendation(request)
+                if (response.isSuccessful && response.body() != null) {
+                    val result = response.body()!!
+                    _uiState.value = _uiState.value.copy(
+                        mlRecommendation = result,
+                        tokens = result.tokensRemaining
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     fun forceSyncData(networkType: String? = null) {
         viewModelScope.launch {
             _isRefreshing.value = true
             TrafficMonitor.instance?.forceSampling(networkType)
+            repository.syncTelemetryToGoBackend()
             refreshData()
             delay(600.milliseconds)
             _isRefreshing.value = false

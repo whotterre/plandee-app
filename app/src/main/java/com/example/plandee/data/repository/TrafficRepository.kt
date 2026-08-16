@@ -8,6 +8,9 @@ import android.net.ConnectivityManager
 import android.net.TrafficStats
 import android.os.Build
 import com.example.plandee.data.db.TrafficDatabaseHelper
+import com.example.plandee.data.network.RetrofitClient
+import com.example.plandee.data.network.TelemetryIngestionRequest
+import com.example.plandee.data.network.UsageHistoryPayload
 import com.example.plandee.data.telemetry.UsagePermissionBridge
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,6 +19,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.roundToInt
 
 data class TrafficSummary(
@@ -80,6 +84,40 @@ class TrafficRepository(private val context: Context) {
             add(Calendar.DAY_OF_YEAR, -30)
         }
         return cal.timeInMillis
+    }
+
+    suspend fun syncTelemetryToGoBackend(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val activeApps = scanAndFetchGlassWireAppUsages()
+            if (activeApps.isEmpty()) return@withContext false
+
+            val now = System.currentTimeMillis()
+            val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+            val startTimeStr = isoFormat.format(Date(getThirtyDayStartTimestamp()))
+            val endTimeStr = isoFormat.format(Date(now))
+
+            val payloads = activeApps.map { item ->
+                UsageHistoryPayload(
+                    connectionType = "MOBILE",
+                    networkCarrier = "MTN",
+                    appName = item.name,
+                    appPackageName = item.packageName,
+                    bytesUsed = item.totalBytes,
+                    startTime = startTimeStr,
+                    endTime = endTimeStr
+                )
+            }
+
+            val request = TelemetryIngestionRequest(data = payloads)
+            val apiService = RetrofitClient.getApiService(context)
+            val response = apiService.syncTelemetry(request)
+            response.isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 
     suspend fun getTrafficSummary(): TrafficSummary = withContext(Dispatchers.IO) {
