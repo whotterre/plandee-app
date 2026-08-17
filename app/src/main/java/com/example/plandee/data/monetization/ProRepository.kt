@@ -86,10 +86,11 @@ class ProRepository private constructor(private val context: Context) {
             )
         } catch (e: Exception) {
             Log.e(TAG, "RevenueCat not configured yet", e)
+            _isProState.value = false
         }
     }
 
-    fun restorePurchases(onSuccess: () -> Unit = {}) {
+    fun restorePurchases(onSuccess: (String) -> Unit = {}) {
         try {
             Purchases.sharedInstance.restorePurchasesWith(
                 onError = { error ->
@@ -98,19 +99,21 @@ class ProRepository private constructor(private val context: Context) {
                 onSuccess = { customerInfo ->
                     updateProEntitlementStatus(customerInfo)
                     if (isProState.value) {
-                        onSuccess()
+                        val appUserId = try { Purchases.sharedInstance.appUserID } catch (e: Exception) { customerInfo.originalAppUserId }
+                        onSuccess(appUserId)
                         Toast.makeText(context, "PlanDee Pro restored successfully!", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(context, "No active PlanDee Pro subscription found.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "No active PlanDee Pro subscription found on RevenueCat.", Toast.LENGTH_SHORT).show()
                     }
                 }
             )
         } catch (e: Exception) {
             Log.e(TAG, "Restore purchases failed", e)
+            Toast.makeText(context, "RevenueCat SDK Error: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
         }
     }
 
-    fun purchasePackage(activity: Activity, rcPackage: Package, onPurchaseSuccess: () -> Unit = {}) {
+    fun purchasePackage(activity: Activity, rcPackage: Package, onPurchaseSuccess: (String) -> Unit = {}) {
         try {
             Purchases.sharedInstance.purchaseWith(
                 PurchaseParams.Builder(activity, rcPackage).build(),
@@ -121,20 +124,22 @@ class ProRepository private constructor(private val context: Context) {
                 },
                 onSuccess = { _, customerInfo ->
                     updateProEntitlementStatus(customerInfo)
-                    onPurchaseSuccess()
-                    Toast.makeText(context, "Welcome to PlanDee Pro!", Toast.LENGTH_SHORT).show()
+                    if (isProState.value) {
+                        val appUserId = try { Purchases.sharedInstance.appUserID } catch (e: Exception) { customerInfo.originalAppUserId }
+                        onPurchaseSuccess(appUserId)
+                        Toast.makeText(context, "Welcome to PlanDee Pro!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Transaction completed, but Pro entitlement is inactive.", Toast.LENGTH_SHORT).show()
+                    }
                 }
             )
         } catch (e: Exception) {
-            Log.e(TAG, "RevenueCat billing error, using sandbox fallback", e)
-            // Sandbox fallback for local developer testing when Google Play product ID is not yet published
-            setProStatus(true)
-            onPurchaseSuccess()
-            Toast.makeText(context, "PlanDee Pro activated (Test Sandbox)", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "RevenueCat purchase error", e)
+            Toast.makeText(context, "RevenueCat SDK Error: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
         }
     }
 
-    fun purchaseProDefault(activity: Activity, onPurchaseSuccess: () -> Unit = {}) {
+    fun purchaseProDefault(activity: Activity, onPurchaseSuccess: (String) -> Unit = {}) {
         val currentOfferings = _offeringsState.value
         val pkg = currentOfferings?.current?.monthly
             ?: currentOfferings?.current?.annual
@@ -143,10 +148,7 @@ class ProRepository private constructor(private val context: Context) {
         if (pkg != null) {
             purchasePackage(activity, pkg, onPurchaseSuccess)
         } else {
-            // Local sandbox fallback when RevenueCat offerings are pending Play Store approval
-            setProStatus(true)
-            onPurchaseSuccess()
-            Toast.makeText(context, "PlanDee Pro activated (Test Sandbox)", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "RevenueCat Error: No active offerings configured or Play Store product pending approval.", Toast.LENGTH_LONG).show()
         }
     }
 

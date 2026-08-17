@@ -95,6 +95,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                         isPro = body.isPro,
                         tokens = remTokens
                     )
+                    proRepository.setProStatus(body.isPro)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -106,23 +107,23 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             try {
                 val apiService = RetrofitClient.getApiService(getApplication())
-                val request = ProUpgradeRequest(revenueCatAppUserId = rcAppUserId ?: sessionManager.getUserId())
+                val request = ProUpgradeRequest(revenueCatAppUserId = rcAppUserId)
                 val response = apiService.upgradePro(request)
 
-                if (response.isSuccessful && response.body() != null) {
+                if (response.isSuccessful && response.body() != null && response.body()?.isPro == true) {
                     _uiState.value = _uiState.value.copy(isPro = true)
                     proRepository.setProStatus(true)
                     onComplete(true)
                 } else {
-                    _uiState.value = _uiState.value.copy(isPro = true)
-                    proRepository.setProStatus(true)
-                    onComplete(true)
+                    _uiState.value = _uiState.value.copy(isPro = false)
+                    proRepository.setProStatus(false)
+                    onComplete(false)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                _uiState.value = _uiState.value.copy(isPro = true)
-                proRepository.setProStatus(true)
-                onComplete(true)
+                _uiState.value = _uiState.value.copy(isPro = false)
+                proRepository.setProStatus(false)
+                onComplete(false)
             }
         }
     }

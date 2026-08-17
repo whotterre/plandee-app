@@ -39,7 +39,7 @@ enum class ProPackageType(val title: String, val priceText: String, val badgeTex
 
 @Composable
 fun DashboardTabPro(
-    onSubscribePro: (String?) -> Unit = {}
+    onSubscribePro: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val proRepository = remember { ProRepository.getInstance(context) }
@@ -228,14 +228,13 @@ fun DashboardTabPro(
                             ProPackageType.YEARLY -> offerings?.current?.annual
                             ProPackageType.LIFETIME -> offerings?.current?.lifetime
                         }
-                        val rcId = try { Purchases.sharedInstance.appUserID } catch (e: Exception) { null }
                         if (selectedRcPkg != null) {
-                            proRepository.purchasePackage(activity, selectedRcPkg) {
-                                onSubscribePro(rcId)
+                            proRepository.purchasePackage(activity, selectedRcPkg) { appUserId ->
+                                onSubscribePro(appUserId)
                             }
                         } else {
-                            proRepository.purchaseProDefault(activity) {
-                                onSubscribePro(rcId)
+                            proRepository.purchaseProDefault(activity) { appUserId ->
+                                onSubscribePro(appUserId)
                             }
                         }
                     }
@@ -269,9 +268,8 @@ fun DashboardTabPro(
 
             TextButton(
                 onClick = {
-                    val rcId = try { Purchases.sharedInstance.appUserID } catch (e: Exception) { null }
-                    proRepository.restorePurchases {
-                        onSubscribePro(rcId)
+                    proRepository.restorePurchases { appUserId ->
+                        onSubscribePro(appUserId)
                     }
                 }
             ) {
