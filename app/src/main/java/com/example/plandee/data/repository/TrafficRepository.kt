@@ -65,7 +65,7 @@ data class AppLeaderboardItem(
 class TrafficRepository(private val context: Context) {
 
     private val dbHelper = TrafficDatabaseHelper(context.applicationContext)
-    private val df = DecimalFormat("#.#")
+    private val df = DecimalFormat("#.##")
     private val dayFormat = SimpleDateFormat("EEE", Locale.US)
     private val dateFormat = SimpleDateFormat("dd MMM", Locale.US)
 
@@ -135,11 +135,14 @@ class TrafficRepository(private val context: Context) {
         var mobileBytes = 0L
         var wifiBytes = 0L
 
+        var thirtyDayBytes = 0L
+
         if (UsagePermissionBridge.isUsageAccessGranted(context)) {
             val netStatsManager = context.getSystemService(Context.NETWORK_STATS_SERVICE) as? NetworkStatsManager
             if (netStatsManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 val startTime = getTodayStartTimestamp()
                 val endTime = System.currentTimeMillis()
+                val thirtyDayStart = getThirtyDayStartTimestamp()
 
                 try {
                     val wifiSummary = netStatsManager.querySummaryForDevice(ConnectivityManager.TYPE_WIFI, null, startTime, endTime)
@@ -153,6 +156,10 @@ class TrafficRepository(private val context: Context) {
                         mobileBytes = nsmMobile
                         totalBytes = nsmWifi + nsmMobile
                     }
+
+                    val w30 = netStatsManager.querySummaryForDevice(ConnectivityManager.TYPE_WIFI, null, thirtyDayStart, endTime)
+                    val m30 = netStatsManager.querySummaryForDevice(ConnectivityManager.TYPE_MOBILE, null, thirtyDayStart, endTime)
+                    thirtyDayBytes = (w30.rxBytes + w30.txBytes + m30.rxBytes + m30.txBytes).coerceAtLeast(0L)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -190,7 +197,13 @@ class TrafficRepository(private val context: Context) {
         val wifiPercent = if (totalGb > 0) ((wifiGb / totalGb) * 100).roundToInt() else 50
         val mobilePercent = 100 - wifiPercent
 
-        val avgDailyBurn = (totalGb / 30.0).coerceAtLeast(0.1)
+        // True 30-day average daily burn calculation
+        val avgDailyBurn = if (thirtyDayBytes > 0) {
+            (thirtyDayBytes.toDouble() / (1024 * 1024 * 1024)) / 30.0
+        } else {
+            totalGb
+        }
+
         val mobileCostEst = (mobileGb * 750).toInt()
         val peak = calculateDynamicPeakWindow()
 
