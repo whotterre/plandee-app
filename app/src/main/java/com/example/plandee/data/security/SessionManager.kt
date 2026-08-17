@@ -16,7 +16,9 @@ class SessionManager private constructor(context: Context) {
         private const val KEY_USER_ID = "user_id"
         private const val KEY_USER_EMAIL = "user_email"
         private const val KEY_TOKENS = "user_tokens"
+        private const val KEY_CUSTOM_ALERT_MB = "custom_data_alert_mb"
         private const val DEFAULT_TOKENS = 10
+        private const val DEFAULT_ALERT_MB = 500
 
         @Volatile
         private var INSTANCE: SessionManager? = null
@@ -83,6 +85,22 @@ class SessionManager private constructor(context: Context) {
 
     fun addTokens(count: Int) {
         saveTokens(getTokens() + count)
+    }
+
+    fun saveCustomDataAlertMb(mb: Int) {
+        try {
+            prefs.edit().putInt(KEY_CUSTOM_ALERT_MB, mb).apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun getCustomDataAlertMb(): Int {
+        return try {
+            prefs.getInt(KEY_CUSTOM_ALERT_MB, DEFAULT_ALERT_MB)
+        } catch (e: Exception) {
+            DEFAULT_ALERT_MB
+        }
     }
 
     fun saveAuthToken(token: String) {

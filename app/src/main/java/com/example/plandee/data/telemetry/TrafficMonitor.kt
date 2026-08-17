@@ -15,6 +15,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.plandee.R
 import com.example.plandee.data.db.TrafficDatabaseHelper
+import com.example.plandee.data.security.SessionManager
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -30,6 +31,7 @@ class TrafficMonitor(private val context: Context) {
 
     private val appContext = context.applicationContext
     private val dbHelper = TrafficDatabaseHelper(appContext)
+    private val sessionManager = SessionManager.getInstance(appContext)
     private val connectivityManager = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private val notificationManager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     private val networkStatsManager = appContext.getSystemService(Context.NETWORK_STATS_SERVICE) as? NetworkStatsManager
@@ -249,6 +251,7 @@ class TrafficMonitor(private val context: Context) {
                 }
             }
 
+            // GlassWire-level direct TrafficStats scanner for Telegram, YouTube, Duolingo, WhatsApp
             val installedApps = pm.getInstalledApplications(0)
             for (appInfo in installedApps) {
                 val uid = appInfo.uid
@@ -298,14 +301,17 @@ class TrafficMonitor(private val context: Context) {
                 sessionDeltaBytes = deltaBytes
             )
 
-            // 500MB Data Spend Push Notification Check
+            // DYNAMIC CUSTOM DATA THRESHOLD ALERT NOTIFICATION
             if (activeType == "MOBILE") {
                 sessionMobileBytesSpent += deltaBytes
                 val mbSpent = sessionMobileBytesSpent.toDouble() / (1024 * 1024)
-                val milestone = (mbSpent / 500.0).toInt()
-                if (milestone > lastNotifiedMbMilestone && milestone > 0) {
-                    lastNotifiedMbMilestone = milestone
-                    DataUsageNotificationService.send500MbSpendNotification(appContext, milestone * 500.0)
+                val targetAlertMb = sessionManager.getCustomDataAlertMb().toDouble()
+                if (targetAlertMb > 0) {
+                    val milestone = (mbSpent / targetAlertMb).toInt()
+                    if (milestone > lastNotifiedMbMilestone && milestone > 0) {
+                        lastNotifiedMbMilestone = milestone
+                        DataUsageNotificationService.send500MbSpendNotification(appContext, milestone * targetAlertMb)
+                    }
                 }
             }
 
