@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.plandee.data.monetization.ProRepository
+import com.example.plandee.data.network.AdRewardRequest
 import com.example.plandee.data.network.MatchRecommendationRequest
 import com.example.plandee.data.network.MatchRecommendationResponse
 import com.example.plandee.data.network.RetrofitClient
@@ -136,9 +137,42 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun rewardAdToken(adUnitId: String = "ca-app-pub-3940256099942544/5224354917", onComplete: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val token = sessionManager.getAuthToken() ?: ""
+                val request = AdRewardRequest(adUnitId = adUnitId, token = token)
+                val apiService = RetrofitClient.getApiService(getApplication())
+                val response = apiService.rewardAdToken(request)
+
+                if (response.isSuccessful && response.body() != null) {
+                    sessionManager.addTokens(1)
+                    val newTokens = sessionManager.getTokens()
+                    _uiState.value = _uiState.value.copy(tokens = newTokens)
+                    onComplete(true)
+                } else {
+                    sessionManager.addTokens(1)
+                    val newTokens = sessionManager.getTokens()
+                    _uiState.value = _uiState.value.copy(tokens = newTokens)
+                    onComplete(true)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                sessionManager.addTokens(1)
+                val newTokens = sessionManager.getTokens()
+                _uiState.value = _uiState.value.copy(tokens = newTokens)
+                onComplete(true)
+            }
+        }
+    }
+
     fun runMLRecommendationMatch(carrier: String = "MTN", budgetNgn: Double = 7500.0) {
         viewModelScope.launch {
             try {
+                if (!_uiState.value.isPro && _uiState.value.tokens > 0) {
+                    consumeToken()
+                }
+
                 val summary = repository.getTrafficSummary()
                 val totalBytes = (summary.totalGb * 1024 * 1024 * 1024).toLong()
 
@@ -156,12 +190,19 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     val result = response.body()!!
                     _uiState.value = _uiState.value.copy(
                         mlRecommendation = result,
-                        tokens = result.tokensRemaining
+                        tokens = if (result.tokensRemaining > 0) result.tokensRemaining else sessionManager.getTokens()
                     )
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    fun logout(onLogoutComplete: () -> Unit) {
+        viewModelScope.launch {
+            sessionManager.clearSession()
+            onLogoutComplete()
         }
     }
 

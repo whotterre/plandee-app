@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Leaderboard
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Wifi
@@ -54,6 +56,7 @@ enum class DashboardTab(val title: String, val icon: ImageVector) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
+    onNavigateToAuth: () -> Unit = {},
     viewModel: DashboardViewModel = viewModel()
 ) {
     var activeTab by remember { mutableStateOf(DashboardTab.USAGE) }
@@ -62,6 +65,7 @@ fun DashboardScreen(
 
     var activeBannerMessage by remember { mutableStateOf<String?>(null) }
     var isBannerConnected by remember { mutableStateOf(true) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
     val df = remember { DecimalFormat("#.#") }
 
@@ -114,7 +118,7 @@ fun DashboardScreen(
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
                                 color = if (uiState.isPro) NeonEmeraldGlow.copy(alpha = 0.15f) else RetroAmberGold.copy(alpha = 0.15f),
-                                border = androidx.compose.foundation.BorderStroke(
+                                border = BorderStroke(
                                     1.5.dp,
                                     if (uiState.isPro) NeonEmeraldGlow else RetroAmberGold
                                 )
@@ -149,12 +153,13 @@ fun DashboardScreen(
                                     .size(38.dp)
                                     .clip(CircleShape)
                                     .background(Color.White)
-                                    .border(1.5.dp, RetroBorderMetallic, CircleShape),
+                                    .border(1.5.dp, RetroBorderMetallic, CircleShape)
+                                    .clickable { showLogoutDialog = true },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Image(
                                     painter = painterResource(id = R.drawable.logo),
-                                    contentDescription = "User Avatar Logo",
+                                    contentDescription = "User Profile",
                                     modifier = Modifier.size(26.dp)
                                 )
                             }
@@ -204,7 +209,7 @@ fun DashboardScreen(
                     color = RetroCardSurface,
                     tonalElevation = 10.dp,
                     shadowElevation = 10.dp,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, RetroBevelHighlight)
+                    border = BorderStroke(1.dp, RetroBevelHighlight)
                 ) {
                     Row(
                         modifier = Modifier
@@ -259,7 +264,6 @@ fun DashboardScreen(
                 }
             }
         ) { innerPadding ->
-            // NATIVE PULL-TO-REFRESH SWIPE CONTAINER
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
                 onRefresh = { viewModel.forceSyncData() },
@@ -271,7 +275,10 @@ fun DashboardScreen(
                     DashboardTab.AUDITOR -> DashboardTabAuditor(
                         isPro = uiState.isPro,
                         tokens = uiState.tokens,
+                        mlRecommendation = uiState.mlRecommendation,
+                        onRunMLMatch = { carrier, budget -> viewModel.runMLRecommendationMatch(carrier, budget) },
                         onTokenConsumed = { viewModel.consumeToken() },
+                        onRewardAdWatched = { viewModel.rewardAdToken() },
                         onNavigateToPro = { activeTab = DashboardTab.PRO }
                     )
                     DashboardTab.USAGE -> DashboardTabHome(
@@ -290,5 +297,42 @@ fun DashboardScreen(
                 }
             }
         }
+    }
+
+    // LOGOUT CONFIRMATION DIALOG
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Logout, contentDescription = "Logout", tint = NeonRoseAccent)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Logout of PlanDee")
+                }
+            },
+            text = {
+                Text("Are you sure you want to log out of your PlanDee account?")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLogoutDialog = false
+                        viewModel.logout {
+                            onNavigateToAuth()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonRoseAccent)
+                ) {
+                    Text("Logout", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showLogoutDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+            containerColor = RetroCardSurface,
+            shape = RoundedCornerShape(20.dp)
+        )
     }
 }

@@ -1,6 +1,7 @@
 package com.example.plandee.ui.screens.dashboard
 
 import android.app.Activity
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.OfflineBolt
 import androidx.compose.material.icons.filled.OndemandVideo
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.plandee.R
 import com.example.plandee.data.monetization.RewardedAdManager
+import com.example.plandee.data.network.MatchRecommendationResponse
 import com.example.plandee.ui.components.RetroTactileCard
 import com.example.plandee.ui.theme.*
 import java.text.DecimalFormat
@@ -48,7 +51,10 @@ data class RecommendedBundle(
 fun DashboardTabAuditor(
     isPro: Boolean = false,
     tokens: Int = 2,
+    mlRecommendation: MatchRecommendationResponse? = null,
+    onRunMLMatch: (String, Double) -> Unit = { _, _ -> },
     onTokenConsumed: () -> Unit = {},
+    onRewardAdWatched: () -> Unit = {},
     onNavigateToPro: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -165,12 +171,11 @@ fun DashboardTabAuditor(
     }
 
     fun handleRunRecommendation() {
-        if (isPro) return
-        if (tokens > 0) {
-            onTokenConsumed()
-        } else {
+        if (!isPro && tokens <= 0) {
             showZeroTokenDialog = true
+            return
         }
+        onRunMLMatch(selectedCarrier, targetBudget.toDouble())
     }
 
     Column(
@@ -268,7 +273,7 @@ fun DashboardTabAuditor(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // DURATION SELECTOR SEGMENT - UNIFORM 1.5DP COMPLETE BORDER
+        // DURATION SELECTOR SEGMENT
         Text(
             text = "Plan Duration Preference",
             style = MaterialTheme.typography.labelSmall.copy(
@@ -312,7 +317,7 @@ fun DashboardTabAuditor(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // TARGET BUDGET SLIDER CARD - CONTINUOUS SMOOTH TRACK (NO DOTS)
+        // TARGET BUDGET SLIDER CARD
         RetroTactileCard(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -339,12 +344,9 @@ fun DashboardTabAuditor(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Smooth continuous slider (no discrete dots)
             Slider(
                 value = targetBudget,
-                onValueChange = {
-                    targetBudget = it
-                },
+                onValueChange = { targetBudget = it },
                 valueRange = 500f..20000f,
                 colors = SliderDefaults.colors(
                     thumbColor = NeonEmeraldGlow,
@@ -364,7 +366,7 @@ fun DashboardTabAuditor(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // FORM SUBMIT ACTION BUTTON: RECOMMEND
+        // FORM SUBMIT ACTION BUTTON: RECOMMEND ML MATCH
         Button(
             onClick = { handleRunRecommendation() },
             modifier = Modifier
@@ -375,14 +377,14 @@ fun DashboardTabAuditor(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = "Recommend",
+                    imageVector = Icons.Default.Psychology,
+                    contentDescription = "AI Recommend",
                     tint = Color.White,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(22.dp)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = "Recommend Data Plan (-1 Token)",
+                    text = "Find Best Tariff Plan (AI ML)",
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
@@ -394,144 +396,129 @@ fun DashboardTabAuditor(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // SAVINGS INSIGHT BANNER
+        // LIVE BACKEND GO ML PREDICTOR RESULT CARD
+        if (mlRecommendation?.featuredPlan != null) {
+            val plan = mlRecommendation.featuredPlan
+            RetroTactileCard(
+                modifier = Modifier.fillMaxWidth(),
+                borderColor = NeonEmeraldGlow,
+                accentGlow = NeonEmeraldGlow
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = NeonEmeraldGlow.copy(alpha = 0.2f)
+                    ) {
+                        Text(
+                            text = "${plan.matchScorePercentage}% MATCH • ML PREDICTOR",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = NeonEmeraldGlow,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+
+                    Text(
+                        text = "₦${df.format(plan.price.toInt())}",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = NeonEmeraldGlow
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = plan.planName,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = mlRecommendation.analysisSummary,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = {},
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonEmeraldGlow)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Default.Call, contentDescription = "Dial", tint = Color.White, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "Dial ${plan.ussdCode}", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+        }
+
+        // DEFAULT MATCH CARD
         RetroTactileCard(
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.logo),
-                        contentDescription = "Mascot Logo",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(14.dp))
-
                 Text(
-                    text = "${optimalBundle.estimatedSavingsText} on $selectedCarrier!",
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = MaterialTheme.colorScheme.onSurface,
-                        lineHeight = 18.sp
+                    text = optimalBundle.title,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // DYNAMIC OPTIMAL MATCH CARD
-        RetroTactileCard(
-            modifier = Modifier.fillMaxWidth(),
-            borderColor = NeonEmeraldGlow,
-            accentGlow = NeonEmeraldGlow
-        ) {
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = NeonEmeraldGlow.copy(alpha = 0.15f)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .clip(CircleShape)
-                            .background(NeonEmeraldGlow)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "OPTIMAL MATCH",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = NeonEmeraldGlow,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                            letterSpacing = 0.5.sp
-                        )
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = optimalBundle.title,
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = optimalBundle.priceText,
-                    style = MaterialTheme.typography.titleMedium.copy(
+                    style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
                         color = NeonEmeraldGlow
                     )
                 )
-                Text(
-                    text = optimalBundle.durationText,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.OfflineBolt,
-                    contentDescription = "Bonus",
-                    tint = RetroAmberGold,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = optimalBundle.bonusText,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                )
-            }
+            Text(
+                text = optimalBundle.bonusText,
+                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+            )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = { handleRunRecommendation() },
+                onClick = {},
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(14.dp),
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = NeonEmeraldGlow)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Call,
-                        contentDescription = "Dial",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    Icon(imageVector = Icons.Default.Call, contentDescription = "Dial", tint = Color.White, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Dial ${optimalBundle.ussdCode}",
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White
-                    )
+                    Text(text = "Dial ${optimalBundle.ussdCode}", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Color.White)
                 }
             }
         }
@@ -564,7 +551,7 @@ fun DashboardTabAuditor(
                         showZeroTokenDialog = false
                         (context as? Activity)?.let { activity ->
                             RewardedAdManager.getInstance(context).showAd(activity) { _ ->
-                                onTokenConsumed()
+                                onRewardAdWatched()
                             }
                         }
                     },

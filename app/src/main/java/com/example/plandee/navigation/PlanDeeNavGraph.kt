@@ -112,7 +112,14 @@ fun PlanDeeNavGraph(
         }
 
         composable(PlanDeeRoutes.Dashboard) {
-            DashboardScreen()
+            DashboardScreen(
+                onNavigateToAuth = {
+                    navController.navigate(PlanDeeRoutes.Auth) {
+                        popUpTo(PlanDeeRoutes.Dashboard) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
         }
     }
 }
