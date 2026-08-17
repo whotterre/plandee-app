@@ -2,7 +2,6 @@ package com.example.plandee.ui.screens.dashboard
 
 import android.app.Activity
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,7 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
@@ -26,15 +25,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.plandee.R
 import com.example.plandee.data.monetization.RewardedAdManager
+import com.example.plandee.data.network.MatchedPlanResultDto
 import com.example.plandee.data.network.MatchRecommendationResponse
 import com.example.plandee.ui.components.RetroTactileCard
+import com.example.plandee.ui.components.VtuPurchaseDialog
 import com.example.plandee.ui.theme.*
 import java.text.DecimalFormat
 
@@ -57,10 +56,12 @@ fun DashboardTabAuditor(
     var selectedCarrier by remember { mutableStateOf("MTN") }
     var selectedDuration by remember { mutableStateOf("Weekly") }
 
-    // VALIDATED NUMERIC BUDGET TEXT INPUT BOX STATE
-    var budgetInputText by remember { mutableStateOf("2000") }
+    var budgetInputText by remember { mutableStateOf("1000") }
     var budgetValidationError by remember { mutableStateOf<String?>(null) }
     var showZeroTokenDialog by remember { mutableStateOf(false) }
+
+    // VTU RECHARGE MODAL SELECTION STATE
+    var selectedVtuPlan by remember { mutableStateOf<MatchedPlanResultDto?>(null) }
 
     fun validateAndGetBudget(): Double? {
         val cleanText = budgetInputText.trim()
@@ -90,7 +91,7 @@ fun DashboardTabAuditor(
     }
 
     LaunchedEffect(Unit) {
-        val validB = validateAndGetBudget() ?: 2000.0
+        val validB = validateAndGetBudget() ?: 1000.0
         onRunMLMatch(selectedCarrier, validB, selectedDuration)
     }
 
@@ -248,7 +249,7 @@ fun DashboardTabAuditor(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // TARGET BUDGET VALIDATED NUMERIC TEXT INPUT BOX (REPLACES SLIDER)
+        // TARGET BUDGET VALIDATED NUMERIC TEXT INPUT BOX
         RetroTactileCard(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -271,7 +272,7 @@ fun DashboardTabAuditor(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Enter target budget e.g. 2000") },
+                placeholder = { Text("Enter target budget e.g. 1000") },
                 prefix = {
                     Text(
                         text = "₦ ",
@@ -279,7 +280,7 @@ fun DashboardTabAuditor(
                             color = NeonEmeraldGlow,
                             fontWeight = FontWeight.Bold
                         )
-                    ),
+                    )
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 isError = budgetValidationError != null,
@@ -333,7 +334,7 @@ fun DashboardTabAuditor(
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = "Find Best Tariff Plan (AI ML)",
+                    text = "Find Best Tariff Plan (DP Optimizer)",
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
@@ -345,7 +346,7 @@ fun DashboardTabAuditor(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // LIVE BACKEND GO ML PREDICTOR FEATURED RESULT CARD
+        // LIVE FEATURED MATCH RESULT CARD WITH VTU & USSD ACTIONS
         if (mlRecommendation?.featuredPlan != null) {
             val plan = mlRecommendation.featuredPlan
             RetroTactileCard(
@@ -403,7 +404,7 @@ fun DashboardTabAuditor(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // LLM REASONING EXPLANATION SUMMARY
+                // EXPLANATION SUMMARY
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = RetroCardSurfaceElevated
@@ -421,25 +422,46 @@ fun DashboardTabAuditor(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Button(
-                    onClick = {},
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = NeonEmeraldGlow)
+                // DUAL ACTION BUTTONS: VTU RECHARGE & USSD DIAL
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.Call, contentDescription = "Dial", tint = Color.White, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Dial ${plan.ussdCode}", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                    Button(
+                        onClick = { selectedVtuPlan = plan },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = NeonEmeraldGlow)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.Bolt, contentDescription = "VTU", tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "⚡ Buy (VTU)", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = {},
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.5.dp, NeonEmeraldGlow)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.Call, contentDescription = "Dial", tint = NeonEmeraldGlow, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = plan.ussdCode, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = NeonEmeraldGlow))
+                        }
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ALTERNATIVE RECOMMENDED PLANS FROM GO BACKEND
+            // ALTERNATIVE MATCHED PLANS
             if (!mlRecommendation.alternativePlans.isNullOrEmpty()) {
                 Text(
                     text = "Alternative Matches for ${selectedCarrier}",
@@ -461,7 +483,7 @@ fun DashboardTabAuditor(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = altPlan.planName,
                                     style = MaterialTheme.typography.titleSmall.copy(
@@ -474,13 +496,26 @@ fun DashboardTabAuditor(
                                     style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 )
                             }
-                            Text(
-                                text = "₦${df.format(altPlan.price.toInt())}",
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = NeonEmeraldGlow
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "₦${df.format(altPlan.price.toInt())}",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = NeonEmeraldGlow
+                                    )
                                 )
-                            )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = { selectedVtuPlan = altPlan },
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = NeonEmeraldGlow),
+                                    modifier = Modifier.height(34.dp)
+                                ) {
+                                    Text("Buy", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 }
@@ -488,6 +523,14 @@ fun DashboardTabAuditor(
         }
 
         Spacer(modifier = Modifier.height(28.dp))
+    }
+
+    // VTU PURCHASE MODAL DIALOG
+    selectedVtuPlan?.let { vtuPlan ->
+        VtuPurchaseDialog(
+            plan = vtuPlan,
+            onDismiss = { selectedVtuPlan = null }
+        )
     }
 
     // ZERO TOKEN INTERCEPT DIALOG
@@ -542,7 +585,7 @@ fun DashboardTabAuditor(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Default.AutoAwesome,
+                            imageVector = Icons.Default.Notifications,
                             contentDescription = "Go Pro",
                             modifier = Modifier.size(18.dp)
                         )

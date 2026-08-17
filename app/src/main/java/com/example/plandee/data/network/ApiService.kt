@@ -131,6 +131,26 @@ data class MatchRecommendationResponse(
     @SerializedName("alternative_plans") val alternativePlans: List<MatchedPlanResultDto>?
 )
 
+// Virtual Top-Up (VTU) DTOs
+data class VtuPurchaseRequest(
+    @SerializedName("phone_number") val phoneNumber: String,
+    val carrier: String,
+    @SerializedName("plan_id") val planId: String,
+    @SerializedName("plan_name") val planName: String,
+    @SerializedName("price_ngn") val priceNgn: Double
+)
+
+data class VtuPurchaseResponse(
+    val status: String,
+    @SerializedName("transaction_id") val transactionId: String,
+    @SerializedName("phone_number") val phoneNumber: String,
+    val carrier: String,
+    @SerializedName("plan_name") val planName: String,
+    @SerializedName("amount_paid_ngn") val amountPaidNgn: Double,
+    val message: String,
+    @SerializedName("network_response_code") val networkResponseCode: String?
+)
+
 // Ad Reward DTOs
 data class AdRewardRequest(
     @SerializedName("ad_unit_id") val adUnitId: String,
@@ -180,6 +200,11 @@ interface ApiService {
     suspend fun matchRecommendation(
         @Body request: MatchRecommendationRequest
     ): Response<MatchRecommendationResponse>
+
+    @POST("v1/vtu/purchase-data")
+    suspend fun purchaseVtuData(
+        @Body request: VtuPurchaseRequest
+    ): Response<VtuPurchaseResponse>
 
     @POST("v1/rewards/ad-reward")
     suspend fun rewardAdToken(

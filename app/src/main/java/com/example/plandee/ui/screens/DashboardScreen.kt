@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Leaderboard
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Wifi
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.plandee.data.telemetry.NetworkEvent
+import com.example.plandee.ui.screens.dashboard.DashboardTabAlerts
 import com.example.plandee.ui.screens.dashboard.DashboardTabAuditor
 import com.example.plandee.ui.screens.dashboard.DashboardTabHome
 import com.example.plandee.ui.screens.dashboard.DashboardTabLeaderboard
@@ -46,6 +48,7 @@ import java.text.DecimalFormat
 enum class DashboardTab(val title: String, val icon: ImageVector) {
     AUDITOR("Auditor", Icons.Default.Shield),
     USAGE("Usage", Icons.Default.BarChart),
+    ALERTS("Alerts", Icons.Default.NotificationsActive),
     LEADERBOARD("Leaderboard", Icons.Default.Leaderboard),
     PRO("Pro", Icons.Default.Star)
 }
@@ -228,7 +231,7 @@ fun DashboardScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .navigationBarsPadding()
-                            .padding(vertical = 10.dp),
+                            .padding(vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -239,11 +242,11 @@ fun DashboardScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(16.dp))
                                     .clickable { activeTab = tab }
-                                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(38.dp)
+                                        .size(36.dp)
                                         .clip(CircleShape)
                                         .background(if (isSelected) NeonEmeraldGlow else Color.Transparent)
                                         .border(
@@ -257,16 +260,16 @@ fun DashboardScreen(
                                         imageVector = tab.icon,
                                         contentDescription = tab.title,
                                         tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.height(3.dp))
+                                Spacer(modifier = Modifier.height(2.dp))
 
                                 Text(
                                     text = tab.title,
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 11.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                         color = if (isSelected) NeonEmeraldGlow else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -299,9 +302,14 @@ fun DashboardScreen(
                         dailyBars = uiState.dailyConsumption,
                         timelineBars = uiState.monthlyTimeline,
                         selectedDayIndex = uiState.selectedDayIndex,
-                        leaderboardItems = uiState.leaderboardItems,
                         onDaySelected = { viewModel.selectTimelineDay(it) },
                         onNavigateToAuditor = { activeTab = DashboardTab.AUDITOR }
+                    )
+                    DashboardTab.ALERTS -> DashboardTabAlerts(
+                        timelineBars = uiState.monthlyTimeline,
+                        selectedDayIndex = uiState.selectedDayIndex,
+                        leaderboardItems = uiState.leaderboardItems,
+                        onDaySelected = { viewModel.selectTimelineDay(it) }
                     )
                     DashboardTab.LEADERBOARD -> DashboardTabLeaderboard(
                         leaderboardItems = uiState.leaderboardItems,
