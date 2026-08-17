@@ -305,12 +305,7 @@ fun DashboardScreen(
                         onDaySelected = { viewModel.selectTimelineDay(it) },
                         onNavigateToAuditor = { activeTab = DashboardTab.AUDITOR }
                     )
-                    DashboardTab.ALERTS -> DashboardTabAlerts(
-                        timelineBars = uiState.monthlyTimeline,
-                        selectedDayIndex = uiState.selectedDayIndex,
-                        leaderboardItems = uiState.leaderboardItems,
-                        onDaySelected = { viewModel.selectTimelineDay(it) }
-                    )
+                    DashboardTab.ALERTS -> DashboardTabAlerts()
                     DashboardTab.LEADERBOARD -> DashboardTabLeaderboard(
                         leaderboardItems = uiState.leaderboardItems,
                         allAppsItems = uiState.allAppsItems

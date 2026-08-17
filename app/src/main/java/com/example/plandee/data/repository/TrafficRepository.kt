@@ -69,6 +69,16 @@ class TrafficRepository(private val context: Context) {
     private val dayFormat = SimpleDateFormat("EEE", Locale.US)
     private val dateFormat = SimpleDateFormat("dd MMM", Locale.US)
 
+    private fun isKnownUserApp(pkgName: String, isSysFlag: Boolean): Boolean {
+        val knownUserPkgs = setOf(
+            "org.telegram.messenger", "com.duolingo", "com.google.android.youtube",
+            "com.whatsapp", "com.instagram.android", "com.twitter.android",
+            "com.spotify.music", "com.zhiliaoapp.musically", "com.android.chrome"
+        )
+        if (knownUserPkgs.contains(pkgName.lowercase())) return true
+        return !isSysFlag
+    }
+
     private fun getTodayStartTimestamp(): Long {
         val cal = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)
@@ -197,7 +207,6 @@ class TrafficRepository(private val context: Context) {
         val wifiPercent = if (totalGb > 0) ((wifiGb / totalGb) * 100).roundToInt() else 50
         val mobilePercent = 100 - wifiPercent
 
-        // True 30-day average daily burn calculation
         val avgDailyBurn = if (thirtyDayBytes > 0) {
             (thirtyDayBytes.toDouble() / (1024 * 1024 * 1024)) / 30.0
         } else {
@@ -219,7 +228,7 @@ class TrafficRepository(private val context: Context) {
         )
     }
 
-    suspend fun getDailyConsumption(days: Int = 7): List<DailyConsumptionBar> = withContext(Dispatchers.IO) {
+    suspend fun getDailyConsumption(days: Int = 30): List<DailyConsumptionBar> = withContext(Dispatchers.IO) {
         val netStatsManager = context.getSystemService(Context.NETWORK_STATS_SERVICE) as? NetworkStatsManager
         val isUsageGranted = UsagePermissionBridge.isUsageAccessGranted(context)
         val bars = mutableListOf<DailyConsumptionBar>()
@@ -265,7 +274,7 @@ class TrafficRepository(private val context: Context) {
 
             bars.add(
                 DailyConsumptionBar(
-                    day = dayFormat.format(dayCal.time),
+                    day = dateFormat.format(dayCal.time),
                     wifiGb = wifiF,
                     mobileGb = mobileF
                 )
@@ -401,19 +410,21 @@ class TrafficRepository(private val context: Context) {
                             primaryApp.packageName
                         }
 
-                        val isSys = (primaryApp.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                        val sysFlag = (primaryApp.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                        val userApp = isKnownUserApp(primaryApp.packageName, sysFlag)
+
                         combinedAppMap[primaryApp.packageName] = GlassWireAppUsage(
                             name = appName,
                             packageName = primaryApp.packageName,
                             totalBytes = totalUidBytes,
-                            isSystemApp = isSys
+                            isSystemApp = !userApp
                         )
                     }
                 }
             }
         }
 
-        // ALWAYS MERGE SQLite Database logs (captures Telegram, YouTube, WhatsApp delta traffic recorded by TrafficMonitor)
+        // ALWAYS MERGE SQLite Database logs (captures Telegram, Duolingo, YouTube, WhatsApp delta traffic)
         val dbUsages = dbHelper.getAppUsageSummaryByRange(startTimeMillis, endTimeMillis)
         for ((pkg, bytes) in dbUsages) {
             if (bytes > 0) {
@@ -424,18 +435,19 @@ class TrafficRepository(private val context: Context) {
                 } catch (e: Exception) {
                     existing?.name ?: pkg.substringAfterLast('.')
                 }
-                val isSys = try {
+                val sysFlag = try {
                     val info = context.packageManager.getApplicationInfo(pkg, 0)
                     (info.flags and ApplicationInfo.FLAG_SYSTEM) != 0
                 } catch (e: Exception) {
-                    existing?.isSystemApp ?: false
+                    false
                 }
+                val userApp = isKnownUserApp(pkg, sysFlag)
                 val bestBytes = Math.max(bytes, existing?.totalBytes ?: 0L)
                 combinedAppMap[pkg] = GlassWireAppUsage(
                     name = appName,
                     packageName = pkg,
                     totalBytes = bestBytes,
-                    isSystemApp = isSys
+                    isSystemApp = !userApp
                 )
             }
         }
@@ -547,8 +559,9 @@ class TrafficRepository(private val context: Context) {
 
                     if (total > 0) {
                         val name = try { pm.getApplicationLabel(app).toString() } catch (e: Exception) { app.packageName }
-                        val isSys = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-                        list.add(GlassWireAppUsage(name, app.packageName, total, isSys))
+                        val sysFlag = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                        val userApp = isKnownUserApp(app.packageName, sysFlag)
+                        list.add(GlassWireAppUsage(name, app.packageName, total, !userApp))
                     }
                 }
             }

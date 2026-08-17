@@ -3,6 +3,9 @@ package com.example.plandee.ui.screens.dashboard
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,6 +46,14 @@ fun DashboardTabHome(
     val mobileGbText = remember(summary) { summary?.mobileGb?.toString() ?: "0.0" }
     val dailyBurnText = remember(summary) { summary?.avgDailyBurnGb?.toString() ?: "0.0" }
     val peakWindowText = remember(summary) { summary?.peakWindow ?: "Night Owl (11PM-6AM)" }
+
+    val barListState = rememberLazyListState()
+
+    LaunchedEffect(dailyBars.size) {
+        if (dailyBars.isNotEmpty()) {
+            barListState.scrollToItem((dailyBars.size - 1).coerceAtLeast(0))
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -142,7 +153,7 @@ fun DashboardTabHome(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // 7-DAY DAILY CONSUMPTION STACKED BAR CHART
+        // 30-DAY MONTHLY SIDE-SCROLLABLE STACKED BAR CHART
         RetroTactileCard(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -152,7 +163,7 @@ fun DashboardTabHome(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "7-Day Daily Consumption",
+                    text = "30-Day Monthly Daily Consumption",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -166,7 +177,7 @@ fun DashboardTabHome(
                     Spacer(modifier = Modifier.width(10.dp))
                     Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(MobileEmeraldGreen))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "Mobile Data", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp))
+                    Text(text = "Mobile", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp))
                 }
             }
 
@@ -177,26 +188,27 @@ fun DashboardTabHome(
                 if (maxVal <= 0.1f) 1.0f else maxVal
             }
 
-            Row(
+            LazyRow(
+                state = barListState,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(150.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                    .height(160.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.Bottom
             ) {
-                dailyBars.forEach { bar ->
+                itemsIndexed(dailyBars) { idx, bar ->
                     val wifiHeightPct = (bar.wifiGb / maxBarGb).coerceIn(0f, 1f)
                     val mobileHeightPct = (bar.mobileGb / maxBarGb).coerceIn(0f, 1f)
 
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Bottom,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.width(36.dp)
                     ) {
                         Column(
                             modifier = Modifier
                                 .width(18.dp)
-                                .fillMaxHeight(0.85f),
+                                .fillMaxHeight(0.82f),
                             verticalArrangement = Arrangement.Bottom
                         ) {
                             if (bar.wifiGb > 0) {
@@ -233,7 +245,7 @@ fun DashboardTabHome(
                         Text(
                             text = bar.day,
                             style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 11.sp,
+                                fontSize = 9.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
