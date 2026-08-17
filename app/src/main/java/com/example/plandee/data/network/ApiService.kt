@@ -20,11 +20,16 @@ data class LoginRequest(
 )
 
 data class AuthResponse(
-    val status: String,
-    val token: String,
-    @SerializedName("refresh_token") val refreshToken: String?,
-    val message: String?
-)
+    val status: String? = null,
+    @SerializedName("access_token") val accessToken: String? = null,
+    val token: String? = null,
+    @SerializedName("refresh_token") val refreshToken: String? = null,
+    val message: String? = null
+) {
+    fun getTokenOrFallback(): String? {
+        return if (!accessToken.isNullOrEmpty()) accessToken else token
+    }
+}
 
 // Telemetry Ingestion DTOs (matching Go backend TelemetryIngestionDto)
 data class UsageHistoryPayload(

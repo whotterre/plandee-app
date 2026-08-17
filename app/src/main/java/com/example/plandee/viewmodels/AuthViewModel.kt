@@ -36,8 +36,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
                 if (response.isSuccessful && response.body() != null) {
                     val body = response.body()!!
-                    if (!body.token.isNullOrEmpty()) {
-                        sessionManager.saveAuthToken(body.token)
+                    val jwtToken = body.getTokenOrFallback()
+                    if (!jwtToken.isNullOrEmpty()) {
+                        sessionManager.saveAuthToken(jwtToken)
                         sessionManager.saveUserEmail(email.trim())
                         _uiState.value = _uiState.value.copy(isLoading = false, isAuthenticated = true, isSuccess = true)
                         onSuccess()
@@ -96,8 +97,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
                 if (response.isSuccessful && response.body() != null) {
                     val body = response.body()!!
-                    if (!body.token.isNullOrEmpty()) {
-                        sessionManager.saveAuthToken(body.token)
+                    val jwtToken = body.getTokenOrFallback()
+                    if (!jwtToken.isNullOrEmpty()) {
+                        sessionManager.saveAuthToken(jwtToken)
                         sessionManager.saveUserEmail(email.trim())
                         _uiState.value = _uiState.value.copy(isLoading = false, isAuthenticated = true, isSuccess = true)
                         onSuccess()
