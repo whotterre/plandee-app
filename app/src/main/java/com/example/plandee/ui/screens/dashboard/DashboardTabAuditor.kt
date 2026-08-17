@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -27,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.plandee.R
@@ -36,22 +38,12 @@ import com.example.plandee.ui.components.RetroTactileCard
 import com.example.plandee.ui.theme.*
 import java.text.DecimalFormat
 
-data class RecommendedBundle(
-    val title: String,
-    val priceText: String,
-    val priceAmount: Int,
-    val durationText: String,
-    val ussdCode: String,
-    val bonusText: String,
-    val estimatedSavingsText: String
-)
-
 @Composable
 fun DashboardTabAuditor(
     isPro: Boolean = false,
     tokens: Int = 2,
     mlRecommendation: MatchRecommendationResponse? = null,
-    onRunMLMatch: (String, Double) -> Unit = { _, _ -> },
+    onRunMLMatch: (String, Double, String) -> Unit = { _, _, _ -> },
     onTokenConsumed: () -> Unit = {},
     onRewardAdWatched: () -> Unit = {},
     onNavigateToPro: () -> Unit = {}
@@ -60,125 +52,55 @@ fun DashboardTabAuditor(
     val df = remember { DecimalFormat("#,###") }
 
     val carriers = listOf("MTN", "Airtel", "Glo", "9mobile")
-    val durations = listOf("Monthly", "Weekly", "Daily", "Night")
+    val durations = listOf("Weekly", "Monthly", "Daily", "Night")
 
     var selectedCarrier by remember { mutableStateOf("MTN") }
-    var selectedDuration by remember { mutableStateOf("Monthly") }
-    var targetBudget by remember { mutableFloatStateOf(5000f) }
+    var selectedDuration by remember { mutableStateOf("Weekly") }
+
+    // VALIDATED NUMERIC BUDGET TEXT INPUT BOX STATE
+    var budgetInputText by remember { mutableStateOf("2000") }
+    var budgetValidationError by remember { mutableStateOf<String?>(null) }
     var showZeroTokenDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        onRunMLMatch(selectedCarrier, targetBudget.toDouble())
-    }
-
-    val optimalBundle: RecommendedBundle = remember(selectedCarrier, targetBudget, selectedDuration) {
-        val budgetInt = targetBudget.toInt()
-        when (selectedCarrier) {
-            "MTN" -> when {
-                selectedDuration == "Daily" || budgetInt <= 1000 -> RecommendedBundle(
-                    title = "MTN 1.5GB Daily Flexi",
-                    priceText = "₦500",
-                    priceAmount = 500,
-                    durationText = " / 1 Day",
-                    ussdCode = "*312*1#",
-                    bonusText = "Includes 500MB Night Stream",
-                    estimatedSavingsText = "Saves ₦1,200/mo over pay-as-you-go"
-                )
-                selectedDuration == "Weekly" || budgetInt <= 3000 -> RecommendedBundle(
-                    title = "MTN 7GB Weekly Special",
-                    priceText = "₦2,000",
-                    priceAmount = 2000,
-                    durationText = " / 7 Days",
-                    ussdCode = "*312*2#",
-                    bonusText = "Anytime Data + 1GB YouTube Bonus",
-                    estimatedSavingsText = "Saves ₦2,500/mo over standard plans"
-                )
-                selectedDuration == "Night" -> RecommendedBundle(
-                    title = "MTN 10GB Night Owl Express",
-                    priceText = "₦1,500",
-                    priceAmount = 1500,
-                    durationText = " / 30 Days (11PM - 6AM)",
-                    ussdCode = "*312*8#",
-                    bonusText = "Unthrottled High Speed Night Data",
-                    estimatedSavingsText = "Saves ₦4,500/mo for heavy night users"
-                )
-                else -> RecommendedBundle(
-                    title = "MTN 20GB Monthly Plan",
-                    priceText = "₦7,500",
-                    priceAmount = 7500,
-                    durationText = " / 30 Days",
-                    ussdCode = "*312#",
-                    bonusText = "Anytime + 5GB Night Bonus",
-                    estimatedSavingsText = "Saves ₦5,000/mo compared to daily renewals"
-                )
+    fun validateAndGetBudget(): Double? {
+        val cleanText = budgetInputText.trim()
+        val parsed = cleanText.toDoubleOrNull()
+        return when {
+            cleanText.isEmpty() -> {
+                budgetValidationError = "Budget cannot be empty"
+                null
             }
-            "Airtel" -> when {
-                budgetInt <= 1500 -> RecommendedBundle(
-                    title = "Airtel 2GB Binge Data",
-                    priceText = "₦500",
-                    priceAmount = 500,
-                    durationText = " / 1 Day",
-                    ussdCode = "*141*500#",
-                    bonusText = "Fast 4G Streaming Data",
-                    estimatedSavingsText = "Saves ₦900/week"
-                )
-                selectedDuration == "Weekly" || budgetInt <= 4000 -> RecommendedBundle(
-                    title = "Airtel 10GB Super Weekly",
-                    priceText = "₦3,000",
-                    priceAmount = 3000,
-                    durationText = " / 7 Days",
-                    ussdCode = "*141*3000#",
-                    bonusText = "Includes Free WhatsApp & Socials",
-                    estimatedSavingsText = "Saves ₦3,000/mo for social apps"
-                )
-                else -> RecommendedBundle(
-                    title = "Airtel 15GB Monthly Bundle",
-                    priceText = "₦6,000",
-                    priceAmount = 6000,
-                    durationText = " / 30 Days",
-                    ussdCode = "*141#",
-                    bonusText = "Anytime 4G LTE Data",
-                    estimatedSavingsText = "Saves ₦4,200/mo on monthly renewal"
-                )
+            parsed == null -> {
+                budgetValidationError = "Please enter a valid number"
+                null
             }
-            "Glo" -> when {
-                budgetInt <= 1500 -> RecommendedBundle(
-                    title = "Glo 2.5GB Special",
-                    priceText = "₦500",
-                    priceAmount = 500,
-                    durationText = " / 2 Days",
-                    ussdCode = "*777#",
-                    bonusText = "Glo Grandmasters of Data",
-                    estimatedSavingsText = "Saves ₦1,500/mo"
-                )
-                else -> RecommendedBundle(
-                    title = "Glo 18GB Mega Data",
-                    priceText = "₦5,000",
-                    priceAmount = 5000,
-                    durationText = " / 30 Days",
-                    ussdCode = "*777#",
-                    bonusText = "Includes 4GB Night Bonus",
-                    estimatedSavingsText = "Saves ₦6,000/mo"
-                )
+            parsed < 100.0 -> {
+                budgetValidationError = "Minimum budget is ₦100"
+                null
             }
-            else -> RecommendedBundle(
-                title = "9mobile 11.5GB Smart Data",
-                priceText = "₦4,000",
-                priceAmount = 4000,
-                durationText = " / 30 Days",
-                ussdCode = "*200#",
-                bonusText = "Includes Free Night Streaming",
-                estimatedSavingsText = "Saves ₦3,500/mo"
-            )
+            parsed > 500000.0 -> {
+                budgetValidationError = "Maximum budget is ₦500,000"
+                null
+            }
+            else -> {
+                budgetValidationError = null
+                parsed
+            }
         }
     }
 
+    LaunchedEffect(Unit) {
+        val validB = validateAndGetBudget() ?: 2000.0
+        onRunMLMatch(selectedCarrier, validB, selectedDuration)
+    }
+
     fun handleRunRecommendation() {
+        val validBudget = validateAndGetBudget() ?: return
         if (!isPro && tokens <= 0) {
             showZeroTokenDialog = true
             return
         }
-        onRunMLMatch(selectedCarrier, targetBudget.toDouble())
+        onRunMLMatch(selectedCarrier, validBudget, selectedDuration)
     }
 
     Column(
@@ -260,7 +182,9 @@ fun DashboardTabAuditor(
                         )
                         .clickable {
                             selectedCarrier = carrier
-                            onRunMLMatch(carrier, targetBudget.toDouble())
+                            validateAndGetBudget()?.let { b ->
+                                onRunMLMatch(carrier, b, selectedDuration)
+                            }
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -305,6 +229,9 @@ fun DashboardTabAuditor(
                         )
                         .clickable {
                             selectedDuration = dur
+                            validateAndGetBudget()?.let { b ->
+                                onRunMLMatch(selectedCarrier, b, dur)
+                            }
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -321,51 +248,68 @@ fun DashboardTabAuditor(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // TARGET BUDGET SLIDER CARD
+        // TARGET BUDGET VALIDATED NUMERIC TEXT INPUT BOX (REPLACES SLIDER)
         RetroTactileCard(
             modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Target Budget Input",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                )
-                Text(
-                    text = "₦${df.format(targetBudget.toInt())}",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = NeonEmeraldGlow
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Slider(
-                value = targetBudget,
-                onValueChange = { targetBudget = it },
-                onValueChangeFinished = { onRunMLMatch(selectedCarrier, targetBudget.toDouble()) },
-                valueRange = 500f..20000f,
-                colors = SliderDefaults.colors(
-                    thumbColor = NeonEmeraldGlow,
-                    activeTrackColor = NeonEmeraldGlow,
-                    inactiveTrackColor = RetroTactileBg
+            Text(
+                text = "Target Budget (NGN ₦)",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             )
 
-            Row(
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = budgetInputText,
+                onValueChange = { newValue ->
+                    budgetInputText = newValue.filter { it.isDigit() }
+                    validateAndGetBudget()?.let { b ->
+                        onRunMLMatch(selectedCarrier, b, selectedDuration)
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "₦500", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
-                Text(text = "₦20,000", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                placeholder = { Text("Enter target budget e.g. 2000") },
+                prefix = {
+                    Text(
+                        text = "₦ ",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            color = NeonEmeraldGlow,
+                            fontWeight = FontWeight.Bold
+                        )
+                    ),
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = budgetValidationError != null,
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = NeonEmeraldGlow,
+                    unfocusedBorderColor = RetroBorderMetallic,
+                    errorBorderColor = NeonRoseAccent
+                )
+            )
+
+            if (budgetValidationError != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = budgetValidationError!!,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = NeonRoseAccent,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            } else {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Rule: Enter budget between ₦100 and ₦500,000",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp
+                    )
+                )
             }
         }
 
@@ -401,7 +345,7 @@ fun DashboardTabAuditor(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // LIVE BACKEND GO ML PREDICTOR RESULT CARD
+        // LIVE BACKEND GO ML PREDICTOR FEATURED RESULT CARD
         if (mlRecommendation?.featuredPlan != null) {
             val plan = mlRecommendation.featuredPlan
             RetroTactileCard(
@@ -419,7 +363,7 @@ fun DashboardTabAuditor(
                         color = NeonEmeraldGlow.copy(alpha = 0.2f)
                     ) {
                         Text(
-                            text = "${plan.matchScorePercentage}% MATCH • ${plan.carrier.uppercase()}",
+                            text = "${plan.matchScorePercentage}% MATCH • ${plan.carrier.uppercase()} ${selectedDuration.uppercase()}",
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = NeonEmeraldGlow,
@@ -447,7 +391,17 @@ fun DashboardTabAuditor(
                     )
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Data Allowance: ${plan.dataAllowanceGb} GB • Validity: ${plan.validityDays} Days",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // LLM REASONING EXPLANATION SUMMARY
                 Surface(
@@ -484,54 +438,51 @@ fun DashboardTabAuditor(
             }
 
             Spacer(modifier = Modifier.height(20.dp))
-        }
 
-        // DEFAULT MATCH CARD
-        RetroTactileCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            // ALTERNATIVE RECOMMENDED PLANS FROM GO BACKEND
+            if (!mlRecommendation.alternativePlans.isNullOrEmpty()) {
                 Text(
-                    text = optimalBundle.title,
+                    text = "Alternative Matches for ${selectedCarrier}",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 )
-                Text(
-                    text = optimalBundle.priceText,
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = NeonEmeraldGlow
-                    )
-                )
-            }
+                Spacer(modifier = Modifier.height(10.dp))
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = optimalBundle.bonusText,
-                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Button(
-                onClick = {},
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = NeonEmeraldGlow)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Default.Call, contentDescription = "Dial", tint = Color.White, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Dial ${optimalBundle.ussdCode}", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                mlRecommendation.alternativePlans.forEach { altPlan ->
+                    RetroTactileCard(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = altPlan.planName,
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                )
+                                Text(
+                                    text = "${altPlan.dataAllowanceGb} GB • ${altPlan.validityDays} Days • ${altPlan.matchScorePercentage}% Match",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                )
+                            }
+                            Text(
+                                text = "₦${df.format(altPlan.price.toInt())}",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = NeonEmeraldGlow
+                                )
+                            )
+                        }
+                    }
                 }
             }
         }

@@ -17,6 +17,7 @@ import com.example.plandee.data.repository.TrafficSummary
 import com.example.plandee.data.security.SessionManager
 import com.example.plandee.data.telemetry.NetworkEvent
 import com.example.plandee.data.telemetry.TrafficMonitor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -58,8 +60,29 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         ?: MutableSharedFlow()
 
     init {
-        refreshData()
-        fetchProStatus()
+        // Eager initial cold start data load
+        viewModelScope.launch(Dispatchers.IO) {
+            val summary = repository.getTrafficSummary()
+            val daily = repository.getDailyConsumption(7)
+            val timeline = repository.getMonthlyTimelineConsumption(days = 30)
+            val leaderboard = repository.getAppLeaderboard()
+            val allApps = repository.getAllAppsLeaderboard()
+            val tokens = sessionManager.getTokens()
+
+            withContext(Dispatchers.Main) {
+                _uiState.value = _uiState.value.copy(
+                    summary = summary,
+                    dailyConsumption = daily,
+                    monthlyTimeline = timeline,
+                    selectedDayIndex = if (timeline.isNotEmpty()) timeline.size - 1 else 0,
+                    leaderboardItems = leaderboard,
+                    allAppsItems = allApps,
+                    tokens = tokens
+                )
+            }
+
+            fetchProStatus()
+        }
 
         TrafficMonitor.instance?.onDataUpdatedListener = {
             refreshData()

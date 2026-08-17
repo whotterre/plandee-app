@@ -39,6 +39,9 @@ class TrafficMonitor(private val context: Context) {
     private var sessionStartTotalBytes = 0L
     private var activeSessionSource = "Mobile Data"
 
+    private var sessionMobileBytesSpent = 0L
+    private var lastNotifiedMbMilestone = 0
+
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     private val _networkEventFlow = MutableSharedFlow<NetworkEvent>(extraBufferCapacity = 10)
@@ -66,6 +69,7 @@ class TrafficMonitor(private val context: Context) {
     init {
         instance = this
         createNotificationChannel()
+        DataUsageNotificationService.createNotificationChannel(appContext)
     }
 
     private fun createNotificationChannel() {
@@ -191,9 +195,6 @@ class TrafficMonitor(private val context: Context) {
         return cal.timeInMillis
     }
 
-    /**
-     * GlassWire Architecture: High-speed querySummary across all system UIDs for Wi-Fi and Mobile
-     */
     fun scanInstalledAppsTraffic() {
         try {
             val pm = appContext.packageManager
@@ -234,7 +235,6 @@ class TrafficMonitor(private val context: Context) {
                 }
             }
 
-            // Map UIDs to package names and update SQLite
             for ((uid, totalBytes) in uidTrafficMap) {
                 val packages = pm.getPackagesForUid(uid)
                 if (!packages.isNullOrEmpty()) {
@@ -249,7 +249,6 @@ class TrafficMonitor(private val context: Context) {
                 }
             }
 
-            // Fallback scanner for installed apps using TrafficStats
             val installedApps = pm.getInstalledApplications(0)
             for (appInfo in installedApps) {
                 val uid = appInfo.uid
@@ -298,6 +297,18 @@ class TrafficMonitor(private val context: Context) {
                 txBytes = tx,
                 sessionDeltaBytes = deltaBytes
             )
+
+            // 500MB Data Spend Push Notification Check
+            if (activeType == "MOBILE") {
+                sessionMobileBytesSpent += deltaBytes
+                val mbSpent = sessionMobileBytesSpent.toDouble() / (1024 * 1024)
+                val milestone = (mbSpent / 500.0).toInt()
+                if (milestone > lastNotifiedMbMilestone && milestone > 0) {
+                    lastNotifiedMbMilestone = milestone
+                    DataUsageNotificationService.send500MbSpendNotification(appContext, milestone * 500.0)
+                }
+            }
+
             Log.d(TAG, "Real-time Traffic Stats -> Type: $activeType, Delta: ${deltaBytes / 1024} KB")
             onDataUpdatedListener?.invoke()
         }
