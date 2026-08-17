@@ -1,6 +1,7 @@
 package com.example.plandee.ui.screens.dashboard
 
 import android.app.Activity
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -220,7 +221,6 @@ fun DashboardTabPro(
 
             Button(
                 onClick = {
-                    onSubscribePro()
                     (context as? Activity)?.let { activity ->
                         val selectedRcPkg = when (selectedPackageType) {
                             ProPackageType.MONTHLY -> offerings?.current?.monthly
@@ -228,9 +228,13 @@ fun DashboardTabPro(
                             ProPackageType.LIFETIME -> offerings?.current?.lifetime
                         }
                         if (selectedRcPkg != null) {
-                            proRepository.purchasePackage(activity, selectedRcPkg)
+                            proRepository.purchasePackage(activity, selectedRcPkg) {
+                                onSubscribePro()
+                            }
                         } else {
-                            proRepository.purchaseProDefault(activity)
+                            proRepository.purchaseProDefault(activity) {
+                                onSubscribePro()
+                            }
                         }
                     }
                 },
@@ -263,7 +267,9 @@ fun DashboardTabPro(
 
             TextButton(
                 onClick = {
-                    proRepository.restorePurchases()
+                    proRepository.restorePurchases {
+                        onSubscribePro()
+                    }
                 }
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
