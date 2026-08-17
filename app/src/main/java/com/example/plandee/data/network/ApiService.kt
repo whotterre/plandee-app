@@ -34,13 +34,19 @@ data class AuthResponse(
 // Pro Subscription DTOs
 data class ProStatusResponse(
     @SerializedName("is_pro") val isPro: Boolean,
-    @SerializedName("tokens_remaining") val tokensRemaining: Int?
+    @SerializedName("tokens_remaining") val tokensRemaining: Int?,
+    @SerializedName("revenue_cat_app_user_id") val revenueCatAppUserId: String? = null
+)
+
+data class ProUpgradeRequest(
+    @SerializedName("revenue_cat_app_user_id") val revenueCatAppUserId: String? = null
 )
 
 data class ProUpgradeResponse(
     val status: String,
     val message: String?,
-    @SerializedName("is_pro") val isPro: Boolean?
+    @SerializedName("is_pro") val isPro: Boolean?,
+    @SerializedName("revenue_cat_app_user_id") val revenueCatAppUserId: String? = null
 )
 
 // Telemetry Ingestion DTOs (matching Go backend TelemetryIngestionDto)
@@ -94,10 +100,11 @@ data class LeaderboardResponseDto(
     val data: List<LeaderboardAppEntryDto>?
 )
 
-// ML Recommendation DTOs (matching Go backend MatchRecommendationRequestDto & MatchRecommendationResponseDto)
+// ML Recommendation DTOs
 data class MatchRecommendationRequest(
     @SerializedName("active_sims") val activeSims: List<String>,
     @SerializedName("monthly_budget_ngn") val monthlyBudgetNgn: Double,
+    @SerializedName("preferred_duration") val preferredDuration: String? = null,
     @SerializedName("total_30day_bytes") val total30DayBytes: Long,
     @SerializedName("night_usage_percentage") val nightUsagePercentage: Double,
     @SerializedName("top_app_categories") val topAppCategories: List<String>
@@ -152,7 +159,9 @@ interface ApiService {
     suspend fun getProStatus(): Response<ProStatusResponse>
 
     @POST("v1/pro/upgrade")
-    suspend fun upgradePro(): Response<ProUpgradeResponse>
+    suspend fun upgradePro(
+        @Body request: ProUpgradeRequest = ProUpgradeRequest()
+    ): Response<ProUpgradeResponse>
 
     @POST("v1/telemetry/sync")
     suspend fun syncTelemetry(

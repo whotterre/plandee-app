@@ -308,7 +308,7 @@ fun DashboardScreen(
                         allAppsItems = uiState.allAppsItems
                     )
                     DashboardTab.PRO -> DashboardTabPro(
-                        onSubscribePro = { viewModel.upgradeToPro() }
+                        onSubscribePro = { rcId -> viewModel.upgradeToPro(rcId) }
                     )
                 }
             }

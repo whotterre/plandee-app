@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.example.plandee.data.monetization.ProRepository
 import com.example.plandee.ui.components.RetroTactileCard
 import com.example.plandee.ui.theme.*
+import com.revenuecat.purchases.Purchases
 
 enum class ProPackageType(val title: String, val priceText: String, val badgeText: String?) {
     MONTHLY("Monthly", "₦1,500 / mo", null),
@@ -38,7 +39,7 @@ enum class ProPackageType(val title: String, val priceText: String, val badgeTex
 
 @Composable
 fun DashboardTabPro(
-    onSubscribePro: () -> Unit = {}
+    onSubscribePro: (String?) -> Unit = {}
 ) {
     val context = LocalContext.current
     val proRepository = remember { ProRepository.getInstance(context) }
@@ -227,13 +228,14 @@ fun DashboardTabPro(
                             ProPackageType.YEARLY -> offerings?.current?.annual
                             ProPackageType.LIFETIME -> offerings?.current?.lifetime
                         }
+                        val rcId = try { Purchases.sharedInstance.appUserID } catch (e: Exception) { null }
                         if (selectedRcPkg != null) {
                             proRepository.purchasePackage(activity, selectedRcPkg) {
-                                onSubscribePro()
+                                onSubscribePro(rcId)
                             }
                         } else {
                             proRepository.purchaseProDefault(activity) {
-                                onSubscribePro()
+                                onSubscribePro(rcId)
                             }
                         }
                     }
@@ -267,8 +269,9 @@ fun DashboardTabPro(
 
             TextButton(
                 onClick = {
+                    val rcId = try { Purchases.sharedInstance.appUserID } catch (e: Exception) { null }
                     proRepository.restorePurchases {
-                        onSubscribePro()
+                        onSubscribePro(rcId)
                     }
                 }
             ) {

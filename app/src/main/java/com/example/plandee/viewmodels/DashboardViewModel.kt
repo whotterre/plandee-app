@@ -7,6 +7,7 @@ import com.example.plandee.data.monetization.ProRepository
 import com.example.plandee.data.network.AdRewardRequest
 import com.example.plandee.data.network.MatchRecommendationRequest
 import com.example.plandee.data.network.MatchRecommendationResponse
+import com.example.plandee.data.network.ProUpgradeRequest
 import com.example.plandee.data.network.RetrofitClient
 import com.example.plandee.data.repository.AppLeaderboardItem
 import com.example.plandee.data.repository.DailyConsumptionBar
@@ -101,11 +102,13 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun upgradeToPro(onComplete: (Boolean) -> Unit = {}) {
+    fun upgradeToPro(rcAppUserId: String? = null, onComplete: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
             try {
                 val apiService = RetrofitClient.getApiService(getApplication())
-                val response = apiService.upgradePro()
+                val request = ProUpgradeRequest(revenueCatAppUserId = rcAppUserId ?: sessionManager.getUserId())
+                val response = apiService.upgradePro(request)
+
                 if (response.isSuccessful && response.body() != null) {
                     _uiState.value = _uiState.value.copy(isPro = true)
                     proRepository.setProStatus(true)
@@ -253,12 +256,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun logout(onLogoutComplete: () -> Unit) {
         viewModelScope.launch {
-            try {
-                val apiService = RetrofitClient.getApiService(getApplication())
-                apiService.register(com.example.plandee.data.network.RegisterRequest("", "")) // optional endpoint trigger
-            } catch (e: Exception) {
-                // ignore
-            }
             sessionManager.clearSession()
             onLogoutComplete()
         }
