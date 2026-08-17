@@ -11,6 +11,7 @@ class SessionManager private constructor(context: Context) {
 
     companion object {
         private const val PREF_NAME = "plandee_secure_prefs"
+        private const val FALLBACK_PREF_NAME = "plandee_standard_prefs"
         private const val KEY_JWT_TOKEN = "jwt_token"
         private const val KEY_USER_ID = "user_id"
         private const val KEY_USER_EMAIL = "user_email"
@@ -41,21 +42,33 @@ class SessionManager private constructor(context: Context) {
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
             )
         } catch (e: Exception) {
-            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            context.getSharedPreferences(FALLBACK_PREF_NAME, Context.MODE_PRIVATE)
         }
 
-        if (!prefs.contains(KEY_TOKENS) || prefs.getInt(KEY_TOKENS, 0) < DEFAULT_TOKENS) {
-            saveTokens(DEFAULT_TOKENS)
+        try {
+            if (!prefs.contains(KEY_TOKENS) || prefs.getInt(KEY_TOKENS, 0) < DEFAULT_TOKENS) {
+                saveTokens(DEFAULT_TOKENS)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
     fun saveTokens(tokens: Int) {
-        prefs.edit().putInt(KEY_TOKENS, tokens).apply()
+        try {
+            prefs.edit().putInt(KEY_TOKENS, tokens).apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun getTokens(): Int {
-        val count = prefs.getInt(KEY_TOKENS, DEFAULT_TOKENS)
-        return if (count < 10 && !prefs.contains(KEY_TOKENS)) 10 else count
+        return try {
+            val count = prefs.getInt(KEY_TOKENS, DEFAULT_TOKENS)
+            if (count < 10 && !prefs.contains(KEY_TOKENS)) 10 else count
+        } catch (e: Exception) {
+            DEFAULT_TOKENS
+        }
     }
 
     fun consumeToken(): Boolean {
@@ -73,34 +86,63 @@ class SessionManager private constructor(context: Context) {
     }
 
     fun saveAuthToken(token: String) {
-        prefs.edit().putString(KEY_JWT_TOKEN, token).apply()
+        try {
+            prefs.edit().putString(KEY_JWT_TOKEN, token).apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun getAuthToken(): String? {
-        return prefs.getString(KEY_JWT_TOKEN, null)
+        return try {
+            prefs.getString(KEY_JWT_TOKEN, null)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 
     fun saveUserId(userId: String) {
-        prefs.edit().putString(KEY_USER_ID, userId).apply()
+        try {
+            prefs.edit().putString(KEY_USER_ID, userId).apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun getUserId(): String {
-        return prefs.getString(KEY_USER_ID, "user_demo_uuid") ?: "user_demo_uuid"
+        return try {
+            prefs.getString(KEY_USER_ID, "user_demo_uuid") ?: "user_demo_uuid"
+        } catch (e: Exception) {
+            "user_demo_uuid"
+        }
     }
 
     fun saveUserEmail(email: String) {
-        prefs.edit().putString(KEY_USER_EMAIL, email).apply()
+        try {
+            prefs.edit().putString(KEY_USER_EMAIL, email).apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun getUserEmail(): String? {
-        return prefs.getString(KEY_USER_EMAIL, null)
+        return try {
+            prefs.getString(KEY_USER_EMAIL, null)
+        } catch (e: Exception) {
+            null
+        }
     }
 
     fun clearSession() {
-        prefs.edit().clear().apply()
+        try {
+            prefs.edit().clear().apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun isLoggedIn(): Boolean {
-        return getAuthToken() != null
+        return !getAuthToken().isNullOrEmpty()
     }
 }

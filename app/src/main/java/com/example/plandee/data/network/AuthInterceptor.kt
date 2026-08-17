@@ -7,7 +7,12 @@ import okhttp3.Response
 class AuthInterceptor(private val sessionManager: SessionManager) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
-        val token = sessionManager.getAuthToken()
+
+        val token = try {
+            sessionManager.getAuthToken()
+        } catch (e: Exception) {
+            null
+        }
 
         val requestBuilder = originalRequest.newBuilder()
         if (!token.isNullOrEmpty()) {
