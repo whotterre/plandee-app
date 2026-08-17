@@ -86,6 +86,16 @@ class TrafficRepository(private val context: Context) {
         return cal.timeInMillis
     }
 
+    private fun calculateDynamicPeakWindow(): String {
+        val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        return when (currentHour) {
+            in 23..24, in 0..5 -> "Night Owl (11PM-6AM)"
+            in 6..11 -> "Morning Rush (6AM-12PM)"
+            in 12..17 -> "Afternoon Peak (12PM-6PM)"
+            else -> "Evening Prime (6PM-11PM)"
+        }
+    }
+
     suspend fun syncTelemetryToGoBackend(): Boolean = withContext(Dispatchers.IO) {
         try {
             val activeApps = scanAndFetchGlassWireAppUsages()
@@ -180,8 +190,9 @@ class TrafficRepository(private val context: Context) {
         val wifiPercent = if (totalGb > 0) ((wifiGb / totalGb) * 100).roundToInt() else 50
         val mobilePercent = 100 - wifiPercent
 
-        val avgDailyBurn = (mobileGb / 7.0).coerceAtLeast(0.1)
+        val avgDailyBurn = (totalGb / 30.0).coerceAtLeast(0.1)
         val mobileCostEst = (mobileGb * 750).toInt()
+        val peak = calculateDynamicPeakWindow()
 
         TrafficSummary(
             totalGb = df.format(totalGb).toDouble(),
@@ -190,7 +201,7 @@ class TrafficRepository(private val context: Context) {
             mobileGb = df.format(mobileGb).toDouble(),
             mobilePercent = mobilePercent,
             avgDailyBurnGb = df.format(avgDailyBurn).toDouble(),
-            peakWindow = "Night Owl",
+            peakWindow = peak,
             mobileCostEstNaira = mobileCostEst
         )
     }
@@ -218,11 +229,8 @@ class TrafficRepository(private val context: Context) {
         val netStatsManager = context.getSystemService(Context.NETWORK_STATS_SERVICE) as? NetworkStatsManager
         val isUsageGranted = UsagePermissionBridge.isUsageAccessGranted(context)
 
-        val resultList = mutableListOf<MonthlyTimelineBar>()
         val cal = Calendar.getInstance()
-
-        val todayYear = cal.get(Calendar.YEAR)
-        val todayDayOfYear = cal.get(Calendar.DAY_OF_YEAR)
+        val bars = mutableListOf<MonthlyTimelineBar>()
 
         for (i in (days - 1) downTo 0) {
             val dayCal = Calendar.getInstance().apply {
@@ -240,294 +248,256 @@ class TrafficRepository(private val context: Context) {
             endCal.set(Calendar.SECOND, 59)
             val endTime = endCal.timeInMillis
 
-            val isToday = dayCal.get(Calendar.YEAR) == todayYear && dayCal.get(Calendar.DAY_OF_YEAR) == todayDayOfYear
-
-            var wifiBytes = 0L
-            var mobileBytes = 0L
+            var dayWifiBytes = 0L
+            var dayMobileBytes = 0L
 
             if (isUsageGranted && netStatsManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 try {
-                    val wifiSummary = netStatsManager.querySummaryForDevice(ConnectivityManager.TYPE_WIFI, null, startTime, endTime)
-                    wifiBytes = (wifiSummary.rxBytes + wifiSummary.txBytes).coerceAtLeast(0L)
+                    val wBucket = netStatsManager.querySummaryForDevice(ConnectivityManager.TYPE_WIFI, null, startTime, endTime)
+                    dayWifiBytes = (wBucket.rxBytes + wBucket.txBytes).coerceAtLeast(0L)
 
-                    val mobileSummary = netStatsManager.querySummaryForDevice(ConnectivityManager.TYPE_MOBILE, null, startTime, endTime)
-                    mobileBytes = (mobileSummary.rxBytes + mobileSummary.txBytes).coerceAtLeast(0L)
+                    val mBucket = netStatsManager.querySummaryForDevice(ConnectivityManager.TYPE_MOBILE, null, startTime, endTime)
+                    dayMobileBytes = (mBucket.rxBytes + mBucket.txBytes).coerceAtLeast(0L)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
             }
 
-            if (wifiBytes == 0L && mobileBytes == 0L) {
-                val factor = (0.5f + (i % 5) * 0.3f)
-                wifiBytes = (factor * 1024 * 1024 * 500).toLong()
-                mobileBytes = (factor * 1024 * 1024 * 350).toLong()
+            if (dayWifiBytes == 0L && dayMobileBytes == 0L) {
+                dayWifiBytes = dbHelper.getBytesByRangeAndNetwork(startTime, endTime, "WIFI")
+                dayMobileBytes = dbHelper.getBytesByRangeAndNetwork(startTime, endTime, "MOBILE")
             }
 
-            val wifiGb = (wifiBytes.toDouble() / (1024 * 1024 * 1024)).toFloat()
-            val mobileGb = (mobileBytes.toDouble() / (1024 * 1024 * 1024)).toFloat()
-            val totalGb = wifiGb + mobileGb
+            val wifiF = (dayWifiBytes.toDouble() / (1024 * 1024 * 1024)).toFloat()
+            val mobileF = (dayMobileBytes.toDouble() / (1024 * 1024 * 1024)).toFloat()
+            val totalF = wifiF + mobileF
 
-            val dateObj = Date(startTime)
-            resultList.add(
+            bars.add(
                 MonthlyTimelineBar(
                     dateMillis = startTime,
-                    dayLabel = dayFormat.format(dateObj),
-                    dateLabel = dateFormat.format(dateObj),
-                    wifiGb = wifiGb,
-                    mobileGb = mobileGb,
-                    totalGb = totalGb,
-                    isToday = isToday
+                    dayLabel = dayFormat.format(dayCal.time),
+                    dateLabel = dateFormat.format(dayCal.time),
+                    wifiGb = wifiF,
+                    mobileGb = mobileF,
+                    totalGb = totalF,
+                    isToday = (i == 0)
                 )
             )
         }
-
-        resultList
-    }
-
-    private fun getAppExplanation(packageName: String, appName: String, isSystemApp: Boolean): String {
-        val pkgLower = packageName.lowercase()
-        val nameLower = appName.lowercase()
-
-        return when {
-            pkgLower.contains("youtube") || nameLower.contains("youtube") ->
-                "High-bandwidth video streaming app. Consumes ~1.5 GB/hour during HD video playback."
-            pkgLower.contains("instagram") || nameLower.contains("instagram") ->
-                "Social media video reels and image feed. High background and media streaming data usage."
-            pkgLower.contains("tiktok") || nameLower.contains("tiktok") ->
-                "Short-form HD video stream app. Consumes significant data while scrolling feed."
-            pkgLower.contains("chrome") || nameLower.contains("chrome") ->
-                "Web browser. High data usage from media web pages and video streaming."
-            pkgLower.contains("vending") || nameLower.contains("play store") ->
-                "Google Play Store. Download & update application packages on device."
-            pkgLower.contains("whatsapp") || nameLower.contains("whatsapp") ->
-                "Messaging & voice call app. Low background data; higher during video calls & status uploads."
-            pkgLower.contains("google.android.gms") || pkgLower.contains("gsf") || nameLower.contains("google play services") ->
-                "Essential Android system service powering push notifications, Google Play sync, & Location Services."
-            isSystemApp ->
-                "Combined background data consumed by core Android system daemons, OS updates, and framework services."
-            else ->
-                "User-installed application on your device. Tap 'Restrict Background Data' to control data usage."
-        }
-    }
-
-    private fun checkIfSystemApp(packageName: String): Boolean {
-        val pkgLower = packageName.lowercase()
-
-        // Explicit Whitelist for User-Facing Pre-installed Apps
-        if (pkgLower.contains("youtube") ||
-            pkgLower.contains("chrome") ||
-            pkgLower.contains("vending") || // Google Play Store
-            pkgLower.contains("google.android.gm") || // Gmail
-            pkgLower.contains("google.android.apps.maps") ||
-            pkgLower.contains("google.android.apps.photos") ||
-            pkgLower.contains("whatsapp") ||
-            pkgLower.contains("instagram") ||
-            pkgLower.contains("tiktok")
-        ) {
-            return false // Retained as USER APP!
-        }
-
-        // System background framework daemons
-        if (pkgLower.contains("android.gms") ||
-            pkgLower.contains("android.gsf") ||
-            pkgLower.startsWith("com.android.providers") ||
-            pkgLower.startsWith("com.android.systemui") ||
-            pkgLower == "android"
-        ) {
-            return true
-        }
-
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
-        if (launchIntent != null) {
-            return false
-        }
-
-        return try {
-            val appInfo = context.packageManager.getApplicationInfo(packageName, 0)
-            (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    /**
-     * Requirement: Aggregates system apps into a single category: "System Apps Usage"
-     */
-    private fun scanAndFetchGlassWireAppUsages(
-        startTimeMillis: Long = getThirtyDayStartTimestamp(),
-        endTimeMillis: Long = System.currentTimeMillis()
-    ): List<AppLeaderboardItem> {
-        val pm = context.packageManager
-        val netStatsManager = context.getSystemService(Context.NETWORK_STATS_SERVICE) as? NetworkStatsManager
-        val isUsageGranted = UsagePermissionBridge.isUsageAccessGranted(context)
-
-        val rawAppBytesMap = mutableMapOf<String, Triple<String, Long, Boolean>>()
-
-        if (isUsageGranted && netStatsManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            try {
-                val bucket = NetworkStats.Bucket()
-
-                val wifiStats = netStatsManager.querySummary(ConnectivityManager.TYPE_WIFI, null, startTimeMillis, endTimeMillis)
-                while (wifiStats.hasNextBucket()) {
-                    wifiStats.getNextBucket(bucket)
-                    val uid = bucket.uid
-                    val bytes = bucket.rxBytes + bucket.txBytes
-                    if (bytes > 0) {
-                        val packages = pm.getPackagesForUid(uid)
-                        if (!packages.isNullOrEmpty()) {
-                            val pkg = packages[0]
-                            val existing = rawAppBytesMap[pkg]?.second ?: 0L
-                            val appName = try {
-                                val info = pm.getApplicationInfo(pkg, 0)
-                                pm.getApplicationLabel(info).toString()
-                            } catch (e: Exception) {
-                                pkg
-                            }
-                            val isSys = checkIfSystemApp(pkg)
-                            rawAppBytesMap[pkg] = Triple(appName, existing + bytes, isSys)
-                        }
-                    }
-                }
-                wifiStats.close()
-
-                val mobileStats = netStatsManager.querySummary(ConnectivityManager.TYPE_MOBILE, null, startTimeMillis, endTimeMillis)
-                while (mobileStats.hasNextBucket()) {
-                    mobileStats.getNextBucket(bucket)
-                    val uid = bucket.uid
-                    val bytes = bucket.rxBytes + bucket.txBytes
-                    if (bytes > 0) {
-                        val packages = pm.getPackagesForUid(uid)
-                        if (!packages.isNullOrEmpty()) {
-                            val pkg = packages[0]
-                            val existing = rawAppBytesMap[pkg]?.second ?: 0L
-                            val appName = try {
-                                val info = pm.getApplicationInfo(pkg, 0)
-                                pm.getApplicationLabel(info).toString()
-                            } catch (e: Exception) {
-                                pkg
-                            }
-                            val isSys = checkIfSystemApp(pkg)
-                            rawAppBytesMap[pkg] = Triple(appName, existing + bytes, isSys)
-                        }
-                    }
-                }
-                mobileStats.close()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
-        // Hardware TrafficStats Fallback Scanner
-        val installedApps = pm.getInstalledApplications(0)
-        for (appInfo in installedApps) {
-            val uid = appInfo.uid
-            val pkgName = appInfo.packageName
-            val appName = pm.getApplicationLabel(appInfo).toString()
-
-            val rx = TrafficStats.getUidRxBytes(uid)
-            val tx = TrafficStats.getUidTxBytes(uid)
-
-            if (rx != TrafficStats.UNSUPPORTED.toLong() && tx != TrafficStats.UNSUPPORTED.toLong()) {
-                val total = (rx + tx).coerceAtLeast(0L)
-                if (total > 0 && !rawAppBytesMap.containsKey(pkgName)) {
-                    dbHelper.updateOrInsertAppLog(pkgName, appName, rx, tx)
-                    val isSys = checkIfSystemApp(pkgName)
-                    rawAppBytesMap[pkgName] = Triple(appName, total, isSys)
-                }
-            }
-        }
-
-        val dbLogs = dbHelper.getAllAppUsages()
-        for (log in dbLogs) {
-            if (!rawAppBytesMap.containsKey(log.packageName) && log.totalBytes > 0) {
-                val isSys = checkIfSystemApp(log.packageName)
-                rawAppBytesMap[log.packageName] = Triple(log.appName, log.totalBytes, isSys)
-            }
-        }
-
-        val activeAppsMap = rawAppBytesMap.filter { it.value.second > 0L }
-        if (activeAppsMap.isEmpty()) return emptyList()
-
-        // Separate user apps from system apps
-        val userAppsList = mutableListOf<Pair<String, Triple<String, Long, Boolean>>>()
-        var aggregatedSystemBytes = 0L
-
-        for ((pkg, triple) in activeAppsMap) {
-            val isSys = triple.third
-            if (isSys) {
-                aggregatedSystemBytes += triple.second
-            } else {
-                userAppsList.add(Pair(pkg, triple))
-            }
-        }
-
-        val aggregatedEntitiesList = mutableListOf<Pair<String, Triple<String, Long, Boolean>>>()
-        aggregatedEntitiesList.addAll(userAppsList)
-
-        // Aggregated System Apps Usage category row
-        if (aggregatedSystemBytes > 0L) {
-            aggregatedEntitiesList.add(
-                Pair(
-                    "com.android.system.aggregated",
-                    Triple("System Apps Usage", aggregatedSystemBytes, true)
-                )
-            )
-        }
-
-        // Sort strictly descending by totalBytes
-        val sortedList = aggregatedEntitiesList.sortedByDescending { it.second.second }
-        val totalSumBytes = sortedList.sumOf { it.second.second }.toDouble().coerceAtLeast(1.0)
-
-        return sortedList.mapIndexed { index, entry ->
-            val pkgName = entry.first
-            val appName = entry.second.first
-            val totalBytes = entry.second.second
-            val isSys = entry.second.third
-
-            val mb = totalBytes.toDouble() / (1024 * 1024)
-            val gb = mb / 1024
-            val usageText = if (gb >= 1.0) "${df.format(gb)} GB used" else "${mb.toInt()} MB used"
-
-            val shareRatio = (totalBytes.toDouble() / totalSumBytes).toFloat()
-            val sharePercent = ((totalBytes.toDouble() / totalSumBytes) * 100).roundToInt()
-            val sharePercentText = "$sharePercent% of total app data"
-
-            AppLeaderboardItem(
-                rank = "#${index + 1}",
-                packageName = pkgName,
-                name = appName,
-                usageGb = usageText,
-                progress = shareRatio.coerceIn(0.04f, 1.0f),
-                sharePercentText = sharePercentText,
-                isSystemApp = isSys,
-                explanationText = getAppExplanation(pkgName, appName, isSys),
-                categoryText = if (isSys) "⚙️" else "📱",
-                totalBytes = totalBytes
-            )
-        }
+        bars
     }
 
     suspend fun getAppLeaderboard(): List<AppLeaderboardItem> = withContext(Dispatchers.IO) {
-        val liveApps = scanAndFetchGlassWireAppUsages()
-        if (liveApps.isNotEmpty()) {
-            return@withContext liveApps.take(5)
-        }
-        emptyList()
+        val todayStart = getTodayStartTimestamp()
+        val now = System.currentTimeMillis()
+        val list = getAppLeaderboardForDayRange(todayStart, now)
+        list.take(5)
     }
 
     suspend fun getAllAppsLeaderboard(): List<AppLeaderboardItem> = withContext(Dispatchers.IO) {
-        val liveApps = scanAndFetchGlassWireAppUsages()
-        if (liveApps.isNotEmpty()) {
-            return@withContext liveApps
-        }
-        emptyList()
+        val todayStart = getTodayStartTimestamp()
+        val now = System.currentTimeMillis()
+        getAppLeaderboardForDayRange(todayStart, now)
     }
 
-    suspend fun getAppLeaderboardForDayRange(startTime: Long, endTime: Long): List<AppLeaderboardItem> = withContext(Dispatchers.IO) {
-        val dayApps = scanAndFetchGlassWireAppUsages(startTimeMillis = startTime, endTimeMillis = endTime)
-        if (dayApps.isNotEmpty()) {
-            return@withContext dayApps
+    suspend fun getAppLeaderboardForDayRange(startTimeMillis: Long, endTimeMillis: Long): List<AppLeaderboardItem> = withContext(Dispatchers.IO) {
+        val appUsages = mutableListOf<GlassWireAppUsage>()
+
+        if (UsagePermissionBridge.isUsageAccessGranted(context)) {
+            val netStatsManager = context.getSystemService(Context.NETWORK_STATS_SERVICE) as? NetworkStatsManager
+            val packageManager = context.packageManager
+
+            if (netStatsManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val installedApps = packageManager.getInstalledApplications(0)
+                val uidMap = mutableMapOf<Int, MutableList<ApplicationInfo>>()
+
+                for (app in installedApps) {
+                    uidMap.getOrPut(app.uid) { mutableListOf() }.add(app)
+                }
+
+                for ((uid, apps) in uidMap) {
+                    var uidMobileBytes = 0L
+                    var uidWifiBytes = 0L
+
+                    try {
+                        val mobileStats = netStatsManager.queryDetailsForUid(ConnectivityManager.TYPE_MOBILE, null, startTimeMillis, endTimeMillis, uid)
+                        while (mobileStats.hasNextBucket()) {
+                            val bucket = NetworkStats.Bucket()
+                            mobileStats.getNextBucket(bucket)
+                            uidMobileBytes += (bucket.rxBytes + bucket.txBytes)
+                        }
+                        mobileStats.close()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+
+                    try {
+                        val wifiStats = netStatsManager.queryDetailsForUid(ConnectivityManager.TYPE_WIFI, null, startTimeMillis, endTimeMillis, uid)
+                        while (wifiStats.hasNextBucket()) {
+                            val bucket = NetworkStats.Bucket()
+                            wifiStats.getNextBucket(bucket)
+                            uidWifiBytes += (bucket.rxBytes + bucket.txBytes)
+                        }
+                        wifiStats.close()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+
+                    val totalUidBytes = (uidMobileBytes + uidWifiBytes).coerceAtLeast(0L)
+                    if (totalUidBytes > 10 * 1024 * 1024) { // Only apps with > 10MB
+                        val primaryApp = apps.first()
+                        val appName = try {
+                            packageManager.getApplicationLabel(primaryApp).toString()
+                        } catch (e: Exception) {
+                            primaryApp.packageName
+                        }
+
+                        val isSys = (primaryApp.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                        appUsages.add(
+                            GlassWireAppUsage(
+                                name = appName,
+                                packageName = primaryApp.packageName,
+                                totalBytes = totalUidBytes,
+                                isSystemApp = isSys
+                            )
+                        )
+                    }
+                }
+            }
         }
-        scanAndFetchGlassWireAppUsages().take(5)
+
+        if (appUsages.isEmpty()) {
+            val dbUsages = dbHelper.getAppUsageSummaryByRange(startTimeMillis, endTimeMillis)
+            for ((pkg, bytes) in dbUsages) {
+                if (bytes > 1 * 1024 * 1024) {
+                    val appName = try {
+                        val info = context.packageManager.getApplicationInfo(pkg, 0)
+                        context.packageManager.getApplicationLabel(info).toString()
+                    } catch (e: Exception) {
+                        pkg.substringAfterLast('.')
+                    }
+                    val isSys = try {
+                        val info = context.packageManager.getApplicationInfo(pkg, 0)
+                        (info.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                    } catch (e: Exception) {
+                        false
+                    }
+                    appUsages.add(
+                        GlassWireAppUsage(
+                            name = appName,
+                            packageName = pkg,
+                            totalBytes = bytes,
+                            isSystemApp = isSys
+                        )
+                    )
+                }
+            }
+        }
+
+        val totalAllBytes = appUsages.sumOf { it.totalBytes }.coerceAtLeast(1L)
+        val maxAppBytes = appUsages.maxOfOrNull { it.totalBytes } ?: 1L
+
+        val sortedUsages = appUsages.sortedByDescending { it.totalBytes }
+
+        // REQUIREMENT 8: Group system apps under "system apps usage" category
+        val userAppsList = mutableListOf<AppLeaderboardItem>()
+        var systemAppsTotalBytes = 0L
+        var systemAppsCount = 0
+
+        sortedUsages.forEach { item ->
+            if (item.isSystemApp) {
+                systemAppsTotalBytes += item.totalBytes
+                systemAppsCount++
+            } else {
+                val usageGbVal = item.totalBytes.toDouble() / (1024 * 1024 * 1024)
+                val usageGbStr = if (usageGbVal >= 0.1) "${df.format(usageGbVal)} GB" else "${(item.totalBytes / (1024 * 1024))} MB"
+                val progress = (item.totalBytes.toFloat() / maxAppBytes.toFloat()).coerceIn(0.05f, 1.0f)
+                val sharePct = ((item.totalBytes.toDouble() / totalAllBytes.toDouble()) * 100).roundToInt()
+
+                userAppsList.add(
+                    AppLeaderboardItem(
+                        rank = "",
+                        packageName = item.packageName,
+                        name = item.name,
+                        usageGb = usageGbStr,
+                        progress = progress,
+                        sharePercentText = "$sharePct%",
+                        isSystemApp = false,
+                        explanationText = "Consumes high bandwidth data.",
+                        categoryText = "Application",
+                        totalBytes = item.totalBytes
+                    )
+                )
+            }
+        }
+
+        if (systemAppsTotalBytes > 0) {
+            val usageGbVal = systemAppsTotalBytes.toDouble() / (1024 * 1024 * 1024)
+            val usageGbStr = if (usageGbVal >= 0.1) "${df.format(usageGbVal)} GB" else "${(systemAppsTotalBytes / (1024 * 1024))} MB"
+            val progress = (systemAppsTotalBytes.toFloat() / maxAppBytes.toFloat()).coerceIn(0.05f, 1.0f)
+            val sharePct = ((systemAppsTotalBytes.toDouble() / totalAllBytes.toDouble()) * 100).roundToInt()
+
+            userAppsList.add(
+                AppLeaderboardItem(
+                    rank = "",
+                    packageName = "com.android.system.grouped",
+                    name = "System Apps Usage",
+                    usageGb = usageGbStr,
+                    progress = progress,
+                    sharePercentText = "$sharePct%",
+                    isSystemApp = true,
+                    explanationText = "Combined total of $systemAppsCount background system services.",
+                    categoryText = "System Apps Usage",
+                    totalBytes = systemAppsTotalBytes
+                )
+            )
+        }
+
+        val finalList = userAppsList.sortedByDescending { it.totalBytes }
+        finalList.mapIndexed { index, item ->
+            item.copy(rank = "#${index + 1}")
+        }
+    }
+
+    private fun scanAndFetchGlassWireAppUsages(): List<GlassWireAppUsage> {
+        val list = mutableListOf<GlassWireAppUsage>()
+        if (UsagePermissionBridge.isUsageAccessGranted(context)) {
+            val netStatsManager = context.getSystemService(Context.NETWORK_STATS_SERVICE) as? NetworkStatsManager
+            val pm = context.packageManager
+            if (netStatsManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val startTime = getThirtyDayStartTimestamp()
+                val endTime = System.currentTimeMillis()
+
+                val apps = pm.getInstalledApplications(0)
+                for (app in apps) {
+                    var total = 0L
+                    try {
+                        val mStats = netStatsManager.queryDetailsForUid(ConnectivityManager.TYPE_MOBILE, null, startTime, endTime, app.uid)
+                        while (mStats.hasNextBucket()) {
+                            val b = NetworkStats.Bucket()
+                            mStats.getNextBucket(b)
+                            total += (b.rxBytes + b.txBytes)
+                        }
+                        mStats.close()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+
+                    if (total > 5 * 1024 * 1024) {
+                        val name = try { pm.getApplicationLabel(app).toString() } catch (e: Exception) { app.packageName }
+                        val isSys = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                        list.add(GlassWireAppUsage(name, app.packageName, total, isSys))
+                    }
+                }
+            }
+        }
+        return list
     }
 }
+
+private data class GlassWireAppUsage(
+    val name: String,
+    val packageName: String,
+    val totalBytes: Long,
+    val isSystemApp: Boolean
+)

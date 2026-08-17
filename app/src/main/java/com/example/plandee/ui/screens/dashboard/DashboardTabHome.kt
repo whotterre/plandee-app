@@ -13,8 +13,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.*
@@ -25,20 +23,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.plandee.data.repository.AppLeaderboardItem
+import com.example.plandee.data.repository.DailyConsumptionBar
 import com.example.plandee.data.repository.MonthlyTimelineBar
 import com.example.plandee.data.repository.TrafficSummary
 import com.example.plandee.ui.components.RetroTactileCard
 import com.example.plandee.ui.theme.*
 
+val MobileEmeraldGreen = Color(0xFF10B981) // Emerald Green matching user image
+
 @Composable
 fun DashboardTabHome(
     summary: TrafficSummary?,
+    dailyBars: List<DailyConsumptionBar> = emptyList(),
     timelineBars: List<MonthlyTimelineBar> = emptyList(),
     selectedDayIndex: Int = 29,
     leaderboardItems: List<AppLeaderboardItem> = emptyList(),
@@ -51,11 +51,10 @@ fun DashboardTabHome(
     val wifiGbText = remember(summary) { summary?.wifiGb?.toString() ?: "0.0" }
     val mobileGbText = remember(summary) { summary?.mobileGb?.toString() ?: "0.0" }
     val dailyBurnText = remember(summary) { summary?.avgDailyBurnGb?.toString() ?: "0.0" }
-    val peakWindowText = remember(summary) { summary?.peakWindow ?: "Night Owl" }
+    val peakWindowText = remember(summary) { summary?.peakWindow ?: "Night Owl (11PM-6AM)" }
 
     val timelineState = rememberLazyListState()
 
-    // REQUIREMENT 2: AUTO-SCROLL TIMELINE TO CURRENT DAY (TODAY) ON LOAD
     LaunchedEffect(timelineBars.size) {
         if (timelineBars.isNotEmpty()) {
             val targetIndex = (timelineBars.size - 1).coerceAtLeast(0)
@@ -77,7 +76,7 @@ fun DashboardTabHome(
     ) {
         Spacer(modifier = Modifier.height(12.dp))
 
-        // RETRO TACTILE DONUT CHART CARD - ELECTRIC INDIGO & CYBER TURQUOISE
+        // RETRO TACTILE DONUT CHART CARD - NETWORK TELEMETRY
         RetroTactileCard(
             modifier = Modifier.fillMaxWidth(),
             accentGlow = NeonEmeraldGlow
@@ -116,36 +115,38 @@ fun DashboardTabHome(
 
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         drawArc(
-                            color = DeeSkyBlue, // Sky Blue #38BDF8 / #06B6D4
+                            color = DeeSkyBlue,
                             startAngle = -90f,
                             sweepAngle = wifiSweep,
                             useCenter = false,
-                            style = Stroke(width = 24.dp.toPx(), cap = StrokeCap.Round)
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 24.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
                         )
                         drawArc(
-                            color = NeonRoseAccent, // Mobile Pink #EC4899
-                            startAngle = -90f + wifiSweep + 4f,
-                            sweepAngle = (360f - wifiSweep - 8f).coerceAtLeast(0f),
+                            color = MobileEmeraldGreen,
+                            startAngle = -90f + wifiSweep,
+                            sweepAngle = 360f - wifiSweep,
                             useCenter = false,
-                            style = Stroke(width = 24.dp.toPx(), cap = StrokeCap.Round)
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 24.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
                         )
                     }
 
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         Text(
                             text = totalGbText,
                             style = MaterialTheme.typography.headlineLarge.copy(
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 38.sp,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 34.sp
                             )
                         )
                         Text(
-                            text = "GB TODAY",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = "GB TOTAL",
+                            style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                letterSpacing = 1.sp
                             )
                         )
                     }
@@ -165,7 +166,7 @@ fun DashboardTabHome(
                     )
 
                     LegendItem(
-                        color = NeonRoseAccent,
+                        color = MobileEmeraldGreen,
                         label = "Mobile Data ($mobilePercent%)",
                         value = "$mobileGbText GB"
                     )
@@ -175,7 +176,110 @@ fun DashboardTabHome(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // REQUIREMENT 2: 30-DAY HORIZONTALLY SCROLLABLE MONTHLY TIMELINE GRAPH WITH STACKED BARS
+        // 7-DAY DAILY CONSUMPTION STACKED HISTOGRAM CHART (MATCHING USER SCREENSHOT SPEC)
+        RetroTactileCard(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column {
+                    Text(
+                        text = "Daily Consumption",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 18.sp
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Combined network traffic over the last 7 days",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(DeeSkyBlue))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Wi-Fi", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp))
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(MobileEmeraldGreen))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Mobile Data", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp))
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            val maxDailyGb = remember(dailyBars) {
+                dailyBars.maxOfOrNull { it.wifiGb + it.mobileGb }?.coerceAtLeast(0.5f) ?: 1.0f
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                dailyBars.forEach { bar ->
+                    val totalGb = bar.wifiGb + bar.mobileGb
+                    val heightRatio = (totalGb / maxDailyGb).coerceIn(0.15f, 1f)
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.width(36.dp)
+                    ) {
+                        // Stacked Bar (20% narrower width = 18.dp)
+                        Column(
+                            modifier = Modifier
+                                .height(100.dp * heightRatio)
+                                .width(18.dp)
+                                .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                        ) {
+                            // TOP PORTION: Mobile Data (Emerald Green #10B981)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(bar.mobileGb.coerceAtLeast(0.01f))
+                                    .background(MobileEmeraldGreen)
+                            )
+                            // BOTTOM PORTION: Wi-Fi Data (Sky Blue #38BDF8)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(bar.wifiGb.coerceAtLeast(0.01f))
+                                    .background(DeeSkyBlue)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = bar.day,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = DeeSkyBlue,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // 30-DAY HORIZONTALLY SCROLLABLE MONTHLY TIMELINE GRAPH
         RetroTactileCard(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -224,7 +328,6 @@ fun DashboardTabHome(
                 timelineBars.maxOfOrNull { it.wifiGb + it.mobileGb }?.coerceAtLeast(1.5f) ?: 2f
             }
 
-            // HORIZONTALLY SCROLLABLE TIMELINE GRAPH WITH LAZYROW & STACKED BARS
             LazyRow(
                 state = timelineState,
                 modifier = Modifier
@@ -252,33 +355,30 @@ fun DashboardTabHome(
                             .clickable { onDaySelected(index) }
                             .padding(vertical = 4.dp)
                     ) {
-                        // STACKED BAR: Wi-Fi Data (Sky Blue #38BDF8) + Mobile Data (Pink #EC4899)
                         Column(
                             modifier = Modifier
                                 .height(100.dp * totalHeightRatio)
                                 .width(12.dp)
                                 .clip(RoundedCornerShape(6.dp))
                         ) {
-                            // WI-FI DATA (Sky Blue #38BDF8 / DeeSkyBlue)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(bar.mobileGb.coerceAtLeast(0.1f))
+                                    .background(MobileEmeraldGreen)
+                            )
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .weight(bar.wifiGb.coerceAtLeast(0.1f))
                                     .background(DeeSkyBlue)
                             )
-                            // MOBILE DATA (Pink #EC4899 / NeonRoseAccent)
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(bar.mobileGb.coerceAtLeast(0.1f))
-                                    .background(NeonRoseAccent)
-                            )
                         }
 
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
-                            text = bar.dateLabel.take(2), // Day number e.g. "14", "15"
+                            text = bar.dateLabel.take(2),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = if (isSelected) NeonEmeraldGlow else MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 10.sp,
@@ -287,165 +387,6 @@ fun DashboardTabHome(
                         )
                     }
                 }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // REQUIREMENT 2: DAY-TAP LEADERBOARD LIST DISPLAY FOR SELECTED DAY
-        RetroTactileCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (selectedBar != null && selectedBar.isToday) "Today's App Rankings" else "Rankings for ${selectedBar?.dateLabel ?: "Selected Day"}",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                )
-
-                Text(
-                    text = "${leaderboardItems.size} Apps",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        color = NeonEmeraldGlow,
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            if (leaderboardItems.isEmpty()) {
-                Text(
-                    text = "No app traffic recorded for this specific day.",
-                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
-                    modifier = Modifier.padding(vertical = 12.dp)
-                )
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    leaderboardItems.take(5).forEach { item ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = item.rank,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (item.rank == "#1") NeonEmeraldGlow else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(
-                                        text = item.name,
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    )
-                                    Text(
-                                        text = item.sharePercentText,
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            color = NeonCyanGlow,
-                                            fontSize = 10.sp
-                                        )
-                                    )
-                                }
-                            }
-
-                            Text(
-                                text = item.usageGb,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            )
-                        }
-                        LinearProgressIndicator(
-                            progress = { item.progress },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(4.dp)
-                                .clip(RoundedCornerShape(2.dp)),
-                            color = if (item.rank == "#1") NeonEmeraldGlow else DeeSkyBlue,
-                            trackColor = RetroTactileBg
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // RETRO AI MATCHER CARD
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp)),
-            color = NeonEmeraldGlow,
-            shadowElevation = 8.dp,
-            onClick = onNavigateToAuditor
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.25f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "AI Matcher",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(14.dp))
-
-                    Column {
-                        Text(
-                            text = "AI Telecom Matcher",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Find optimal data plans tailored to your burn rate",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = Color.White.copy(alpha = 0.9f)
-                            )
-                        )
-                    }
-                }
-
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = "Open",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
             }
         }
 
@@ -460,7 +401,7 @@ fun DashboardTabHome(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Default.Whatshot,
                 iconColor = NeonRoseAccent,
-                label = "Daily Burn Rate",
+                label = "30-Day Daily Burn",
                 value = "$dailyBurnText GB/day"
             )
 
@@ -468,7 +409,7 @@ fun DashboardTabHome(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Default.Nightlight,
                 iconColor = RetroAmberGold,
-                label = "Peak Window",
+                label = "Peak Usage Window",
                 value = peakWindowText
             )
         }
@@ -544,9 +485,10 @@ private fun MetricTile(
 
         Text(
             text = value,
-            style = MaterialTheme.typography.titleMedium.copy(
+            style = MaterialTheme.typography.titleSmall.copy(
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 13.sp
             )
         )
     }

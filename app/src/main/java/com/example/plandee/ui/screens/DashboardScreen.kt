@@ -6,7 +6,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,9 +13,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Leaderboard
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Wifi
@@ -29,13 +28,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.plandee.R
 import com.example.plandee.data.telemetry.NetworkEvent
 import com.example.plandee.ui.screens.dashboard.DashboardTabAuditor
 import com.example.plandee.ui.screens.dashboard.DashboardTabHome
@@ -151,20 +148,33 @@ fun DashboardScreen(
 
                             Spacer(modifier = Modifier.width(10.dp))
 
-                            Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White)
-                                    .border(1.5.dp, RetroBorderMetallic, CircleShape)
-                                    .clickable { showLogoutDialog = true },
-                                contentAlignment = Alignment.Center
+                            // EXPLICIT LOGOUT BUTTON IN TOP RIGHT HEADER
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = CrimsonAlertBg,
+                                border = BorderStroke(1.dp, NeonRoseAccent.copy(alpha = 0.5f)),
+                                modifier = Modifier.clickable { showLogoutDialog = true }
                             ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.logo),
-                                    contentDescription = "User Profile",
-                                    modifier = Modifier.size(26.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Logout,
+                                        contentDescription = "Log Out",
+                                        tint = NeonRoseAccent,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Logout",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = NeonRoseAccent,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp
+                                        )
+                                    )
+                                }
                             }
                         }
                     }
@@ -279,13 +289,14 @@ fun DashboardScreen(
                         isPro = uiState.isPro,
                         tokens = uiState.tokens,
                         mlRecommendation = uiState.mlRecommendation,
-                        onRunMLMatch = { carrier, budget -> viewModel.runMLRecommendationMatch(carrier, budget) },
+                        onRunMLMatch = { carrier, budget, duration -> viewModel.runMLRecommendationMatch(carrier, budget, duration) },
                         onTokenConsumed = { viewModel.consumeToken() },
                         onRewardAdWatched = { viewModel.rewardAdToken() },
                         onNavigateToPro = { activeTab = DashboardTab.PRO }
                     )
                     DashboardTab.USAGE -> DashboardTabHome(
                         summary = uiState.summary,
+                        dailyBars = uiState.dailyConsumption,
                         timelineBars = uiState.monthlyTimeline,
                         selectedDayIndex = uiState.selectedDayIndex,
                         leaderboardItems = uiState.leaderboardItems,
@@ -310,7 +321,7 @@ fun DashboardScreen(
             onDismissRequest = { showLogoutDialog = false },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Default.Logout, contentDescription = "Logout", tint = NeonRoseAccent)
+                    Icon(imageVector = Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout", tint = NeonRoseAccent)
                     Spacer(modifier = Modifier.width(10.dp))
                     Text("Logout of PlanDee")
                 }

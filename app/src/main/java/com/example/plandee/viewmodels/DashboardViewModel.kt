@@ -88,9 +88,11 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 val response = apiService.getProStatus()
                 if (response.isSuccessful && response.body() != null) {
                     val body = response.body()!!
+                    val remTokens = body.tokensRemaining ?: sessionManager.getTokens()
+                    sessionManager.saveTokens(remTokens)
                     _uiState.value = _uiState.value.copy(
                         isPro = body.isPro,
-                        tokens = body.tokensRemaining ?: sessionManager.getTokens()
+                        tokens = remTokens
                     )
                 }
             } catch (e: Exception) {
@@ -106,14 +108,17 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 val response = apiService.upgradePro()
                 if (response.isSuccessful && response.body() != null) {
                     _uiState.value = _uiState.value.copy(isPro = true)
+                    proRepository.setProStatus(true)
                     onComplete(true)
                 } else {
                     _uiState.value = _uiState.value.copy(isPro = true)
+                    proRepository.setProStatus(true)
                     onComplete(true)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 _uiState.value = _uiState.value.copy(isPro = true)
+                proRepository.setProStatus(true)
                 onComplete(true)
             }
         }
@@ -151,14 +156,13 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     fun refreshData() {
         viewModelScope.launch {
             val summary = repository.getTrafficSummary()
-            val daily = repository.getDailyConsumption()
+            val daily = repository.getDailyConsumption(7)
             val timeline = repository.getMonthlyTimelineConsumption(days = 30)
 
             val currentIndex = _uiState.value.selectedDayIndex.coerceIn(0, (timeline.size - 1).coerceAtLeast(0))
 
             val leaderboard = repository.getAppLeaderboard()
             val allApps = repository.getAllAppsLeaderboard()
-            val tokens = sessionManager.getTokens()
 
             _uiState.value = _uiState.value.copy(
                 summary = summary,
@@ -167,7 +171,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 selectedDayIndex = if (timeline.isNotEmpty() && currentIndex >= timeline.size) timeline.size - 1 else currentIndex,
                 leaderboardItems = leaderboard,
                 allAppsItems = allApps,
-                tokens = tokens
+                tokens = sessionManager.getTokens()
             )
         }
     }
@@ -187,9 +191,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 val response = apiService.rewardAdToken(request)
 
                 if (response.isSuccessful && response.body() != null) {
-                    sessionManager.addTokens(1)
-                    val newTokens = sessionManager.getTokens()
-                    _uiState.value = _uiState.value.copy(tokens = newTokens)
+                    val body = response.body()!!
+                    val newRem = body.remainingTokens ?: (sessionManager.getTokens() + 1)
+                    sessionManager.saveTokens(newRem)
+                    _uiState.value = _uiState.value.copy(tokens = newRem)
                     onComplete(true)
                 } else {
                     sessionManager.addTokens(1)
@@ -207,7 +212,11 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun runMLRecommendationMatch(carrier: String = "MTN", budgetNgn: Double = 7500.0) {
+    fun runMLRecommendationMatch(
+        carrier: String = "MTN",
+        budgetNgn: Double = 7500.0,
+        preferredDuration: String = "Monthly"
+    ) {
         viewModelScope.launch {
             try {
                 if (!_uiState.value.isPro && _uiState.value.tokens > 0) {
@@ -220,6 +229,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 val request = MatchRecommendationRequest(
                     activeSims = listOf(carrier),
                     monthlyBudgetNgn = budgetNgn,
+                    preferredDuration = preferredDuration,
                     total30DayBytes = totalBytes,
                     nightUsagePercentage = 40.0,
                     topAppCategories = listOf("Streaming", "Social")
@@ -229,9 +239,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 val response = apiService.matchRecommendation(request)
                 if (response.isSuccessful && response.body() != null) {
                     val result = response.body()!!
+                    sessionManager.saveTokens(result.tokensRemaining)
                     _uiState.value = _uiState.value.copy(
                         mlRecommendation = result,
-                        tokens = if (result.tokensRemaining > 0) result.tokensRemaining else sessionManager.getTokens()
+                        tokens = result.tokensRemaining
                     )
                 }
             } catch (e: Exception) {
@@ -242,6 +253,12 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun logout(onLogoutComplete: () -> Unit) {
         viewModelScope.launch {
+            try {
+                val apiService = RetrofitClient.getApiService(getApplication())
+                apiService.register(com.example.plandee.data.network.RegisterRequest("", "")) // optional endpoint trigger
+            } catch (e: Exception) {
+                // ignore
+            }
             sessionManager.clearSession()
             onLogoutComplete()
         }
