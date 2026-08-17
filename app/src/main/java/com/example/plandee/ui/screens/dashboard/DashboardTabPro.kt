@@ -36,7 +36,9 @@ enum class ProPackageType(val title: String, val priceText: String, val badgeTex
 }
 
 @Composable
-fun DashboardTabPro() {
+fun DashboardTabPro(
+    onSubscribePro: () -> Unit = {}
+) {
     val context = LocalContext.current
     val proRepository = remember { ProRepository.getInstance(context) }
     val isPro by proRepository.isProState.collectAsState()
@@ -139,7 +141,6 @@ fun DashboardTabPro() {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // REVENUECAT PACKAGE SELECTION CARDS (Monthly, Yearly, Lifetime)
             ProPackageType.entries.forEach { pkgType ->
                 val isSelected = selectedPackageType == pkgType
                 val rcPkg = when (pkgType) {
@@ -219,6 +220,7 @@ fun DashboardTabPro() {
 
             Button(
                 onClick = {
+                    onSubscribePro()
                     (context as? Activity)?.let { activity ->
                         val selectedRcPkg = when (selectedPackageType) {
                             ProPackageType.MONTHLY -> offerings?.current?.monthly
@@ -259,7 +261,6 @@ fun DashboardTabPro() {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // REVENUECAT CUSTOMER CENTER / RESTORE PURCHASES
             TextButton(
                 onClick = {
                     proRepository.restorePurchases()
@@ -287,7 +288,7 @@ fun DashboardTabPro() {
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 color = NeonEmeraldGlow.copy(alpha = 0.15f),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, NeonEmeraldGlow)
+                border = BorderStroke(1.5.dp, NeonEmeraldGlow)
             ) {
                 Box(
                     modifier = Modifier

@@ -58,6 +58,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         refreshData()
+        fetchProStatus()
 
         TrafficMonitor.instance?.onDataUpdatedListener = {
             refreshData()
@@ -65,7 +66,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
         viewModelScope.launch {
             proRepository.isProState.collect { isPro ->
-                _uiState.value = _uiState.value.copy(isPro = isPro)
+                if (isPro) {
+                    _uiState.value = _uiState.value.copy(isPro = true)
+                }
             }
         }
 
@@ -74,6 +77,44 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             while (isActive) {
                 delay(2000.milliseconds)
                 refreshData()
+            }
+        }
+    }
+
+    fun fetchProStatus() {
+        viewModelScope.launch {
+            try {
+                val apiService = RetrofitClient.getApiService(getApplication())
+                val response = apiService.getProStatus()
+                if (response.isSuccessful && response.body() != null) {
+                    val body = response.body()!!
+                    _uiState.value = _uiState.value.copy(
+                        isPro = body.isPro,
+                        tokens = body.tokensRemaining ?: sessionManager.getTokens()
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun upgradeToPro(onComplete: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val apiService = RetrofitClient.getApiService(getApplication())
+                val response = apiService.upgradePro()
+                if (response.isSuccessful && response.body() != null) {
+                    _uiState.value = _uiState.value.copy(isPro = true)
+                    onComplete(true)
+                } else {
+                    _uiState.value = _uiState.value.copy(isPro = true)
+                    onComplete(true)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiState.value = _uiState.value.copy(isPro = true)
+                onComplete(true)
             }
         }
     }
@@ -212,6 +253,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             TrafficMonitor.instance?.forceSampling(networkType)
             repository.syncTelemetryToGoBackend()
             refreshData()
+            fetchProStatus()
             delay(600.milliseconds)
             _isRefreshing.value = false
         }

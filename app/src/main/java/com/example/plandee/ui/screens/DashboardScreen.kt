@@ -89,6 +89,9 @@ fun DashboardScreen(
 
     LaunchedEffect(activeTab) {
         viewModel.refreshData()
+        if (activeTab == DashboardTab.PRO) {
+            viewModel.fetchProStatus()
+        }
     }
 
     Surface(
@@ -293,7 +296,9 @@ fun DashboardScreen(
                         leaderboardItems = uiState.leaderboardItems,
                         allAppsItems = uiState.allAppsItems
                     )
-                    DashboardTab.PRO -> DashboardTabPro()
+                    DashboardTab.PRO -> DashboardTabPro(
+                        onSubscribePro = { viewModel.upgradeToPro() }
+                    )
                 }
             }
         }

@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.OfflineBolt
 import androidx.compose.material.icons.filled.OndemandVideo
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.*
@@ -67,6 +66,10 @@ fun DashboardTabAuditor(
     var selectedDuration by remember { mutableStateOf("Monthly") }
     var targetBudget by remember { mutableFloatStateOf(5000f) }
     var showZeroTokenDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        onRunMLMatch(selectedCarrier, targetBudget.toDouble())
+    }
 
     val optimalBundle: RecommendedBundle = remember(selectedCarrier, targetBudget, selectedDuration) {
         val budgetInt = targetBudget.toInt()
@@ -257,6 +260,7 @@ fun DashboardTabAuditor(
                         )
                         .clickable {
                             selectedCarrier = carrier
+                            onRunMLMatch(carrier, targetBudget.toDouble())
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -347,6 +351,7 @@ fun DashboardTabAuditor(
             Slider(
                 value = targetBudget,
                 onValueChange = { targetBudget = it },
+                onValueChangeFinished = { onRunMLMatch(selectedCarrier, targetBudget.toDouble()) },
                 valueRange = 500f..20000f,
                 colors = SliderDefaults.colors(
                     thumbColor = NeonEmeraldGlow,
@@ -414,7 +419,7 @@ fun DashboardTabAuditor(
                         color = NeonEmeraldGlow.copy(alpha = 0.2f)
                     ) {
                         Text(
-                            text = "${plan.matchScorePercentage}% MATCH • ML PREDICTOR",
+                            text = "${plan.matchScorePercentage}% MATCH • ${plan.carrier.uppercase()}",
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = NeonEmeraldGlow,
@@ -442,15 +447,23 @@ fun DashboardTabAuditor(
                     )
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                Text(
-                    text = mlRecommendation.analysisSummary,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp
+                // LLM REASONING EXPLANATION SUMMARY
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = RetroCardSurfaceElevated
+                ) {
+                    Text(
+                        text = mlRecommendation.analysisSummary,
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = SlateTextPrimary,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp
+                        )
                     )
-                )
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 

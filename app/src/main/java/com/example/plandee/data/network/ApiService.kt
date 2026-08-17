@@ -31,6 +31,18 @@ data class AuthResponse(
     }
 }
 
+// Pro Subscription DTOs
+data class ProStatusResponse(
+    @SerializedName("is_pro") val isPro: Boolean,
+    @SerializedName("tokens_remaining") val tokensRemaining: Int?
+)
+
+data class ProUpgradeResponse(
+    val status: String,
+    val message: String?,
+    @SerializedName("is_pro") val isPro: Boolean?
+)
+
 // Telemetry Ingestion DTOs (matching Go backend TelemetryIngestionDto)
 data class UsageHistoryPayload(
     @SerializedName("connectionType") val connectionType: String,
@@ -135,6 +147,12 @@ interface ApiService {
     suspend fun login(
         @Body request: LoginRequest
     ): Response<AuthResponse>
+
+    @GET("v1/pro/status")
+    suspend fun getProStatus(): Response<ProStatusResponse>
+
+    @POST("v1/pro/upgrade")
+    suspend fun upgradePro(): Response<ProUpgradeResponse>
 
     @POST("v1/telemetry/sync")
     suspend fun syncTelemetry(
