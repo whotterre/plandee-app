@@ -207,22 +207,58 @@ class TrafficRepository(private val context: Context) {
     }
 
     suspend fun getDailyConsumption(days: Int = 7): List<DailyConsumptionBar> = withContext(Dispatchers.IO) {
-        val summary = getTrafficSummary()
-        val mobileGb = summary.mobileGb.toFloat()
-        val wifiGb = summary.wifiGb.toFloat()
+        val netStatsManager = context.getSystemService(Context.NETWORK_STATS_SERVICE) as? NetworkStatsManager
+        val isUsageGranted = UsagePermissionBridge.isUsageAccessGranted(context)
+        val bars = mutableListOf<DailyConsumptionBar>()
 
-        val dailyMobileShare = (mobileGb / 7f).coerceAtLeast(0.2f)
-        val dailyWifiShare = (wifiGb / 7f).coerceAtLeast(0.4f)
+        for (i in (days - 1) downTo 0) {
+            val dayCal = Calendar.getInstance().apply {
+                add(Calendar.DAY_OF_YEAR, -i)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
 
-        listOf(
-            DailyConsumptionBar("Mon", (dailyWifiShare * 0.9f).coerceAtLeast(0.1f), (dailyMobileShare * 0.8f).coerceAtLeast(0.1f)),
-            DailyConsumptionBar("Tue", (dailyWifiShare * 1.2f).coerceAtLeast(0.1f), (dailyMobileShare * 1.1f).coerceAtLeast(0.1f)),
-            DailyConsumptionBar("Wed", (dailyWifiShare * 1.0f).coerceAtLeast(0.1f), (dailyMobileShare * 0.9f).coerceAtLeast(0.1f)),
-            DailyConsumptionBar("Thu", (dailyWifiShare * 1.3f).coerceAtLeast(0.1f), (dailyMobileShare * 1.4f).coerceAtLeast(0.1f)),
-            DailyConsumptionBar("Fri", (dailyWifiShare * 1.5f).coerceAtLeast(0.1f), (dailyMobileShare * 1.5f).coerceAtLeast(0.1f)),
-            DailyConsumptionBar("Sat", (dailyWifiShare * 0.7f).coerceAtLeast(0.1f), (dailyMobileShare * 0.8f).coerceAtLeast(0.1f)),
-            DailyConsumptionBar("Sun", (dailyWifiShare * 0.4f).coerceAtLeast(0.1f), (dailyMobileShare * 0.5f).coerceAtLeast(0.1f))
-        )
+            val startTime = dayCal.timeInMillis
+            val endCal = dayCal.clone() as Calendar
+            endCal.set(Calendar.HOUR_OF_DAY, 23)
+            endCal.set(Calendar.MINUTE, 59)
+            endCal.set(Calendar.SECOND, 59)
+            val endTime = endCal.timeInMillis
+
+            var dayWifiBytes = 0L
+            var dayMobileBytes = 0L
+
+            if (isUsageGranted && netStatsManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try {
+                    val wBucket = netStatsManager.querySummaryForDevice(ConnectivityManager.TYPE_WIFI, null, startTime, endTime)
+                    dayWifiBytes = (wBucket.rxBytes + wBucket.txBytes).coerceAtLeast(0L)
+
+                    val mBucket = netStatsManager.querySummaryForDevice(ConnectivityManager.TYPE_MOBILE, null, startTime, endTime)
+                    dayMobileBytes = (mBucket.rxBytes + mBucket.txBytes).coerceAtLeast(0L)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            if (dayWifiBytes == 0L && dayMobileBytes == 0L) {
+                dayWifiBytes = dbHelper.getBytesByRangeAndNetwork(startTime, endTime, "WIFI")
+                dayMobileBytes = dbHelper.getBytesByRangeAndNetwork(startTime, endTime, "MOBILE")
+            }
+
+            val wifiF = (dayWifiBytes.toDouble() / (1024 * 1024 * 1024)).toFloat()
+            val mobileF = (dayMobileBytes.toDouble() / (1024 * 1024 * 1024)).toFloat()
+
+            bars.add(
+                DailyConsumptionBar(
+                    day = dayFormat.format(dayCal.time),
+                    wifiGb = wifiF,
+                    mobileGb = mobileF
+                )
+            )
+        }
+        bars
     }
 
     suspend fun getMonthlyTimelineConsumption(days: Int = 30): List<MonthlyTimelineBar> = withContext(Dispatchers.IO) {
@@ -344,7 +380,7 @@ class TrafficRepository(private val context: Context) {
                     }
 
                     val totalUidBytes = (uidMobileBytes + uidWifiBytes).coerceAtLeast(0L)
-                    if (totalUidBytes > 10 * 1024 * 1024) { // Only apps with > 10MB
+                    if (totalUidBytes > 1024) { // Include all apps with > 1KB data
                         val primaryApp = apps.first()
                         val appName = try {
                             packageManager.getApplicationLabel(primaryApp).toString()
@@ -369,7 +405,7 @@ class TrafficRepository(private val context: Context) {
         if (appUsages.isEmpty()) {
             val dbUsages = dbHelper.getAppUsageSummaryByRange(startTimeMillis, endTimeMillis)
             for ((pkg, bytes) in dbUsages) {
-                if (bytes > 1 * 1024 * 1024) {
+                if (bytes > 1024) { // Include apps > 1KB
                     val appName = try {
                         val info = context.packageManager.getApplicationInfo(pkg, 0)
                         context.packageManager.getApplicationLabel(info).toString()
@@ -399,7 +435,6 @@ class TrafficRepository(private val context: Context) {
 
         val sortedUsages = appUsages.sortedByDescending { it.totalBytes }
 
-        // REQUIREMENT 8: Group system apps under "system apps usage" category
         val userAppsList = mutableListOf<AppLeaderboardItem>()
         var systemAppsTotalBytes = 0L
         var systemAppsCount = 0
@@ -409,8 +444,16 @@ class TrafficRepository(private val context: Context) {
                 systemAppsTotalBytes += item.totalBytes
                 systemAppsCount++
             } else {
-                val usageGbVal = item.totalBytes.toDouble() / (1024 * 1024 * 1024)
-                val usageGbStr = if (usageGbVal >= 0.1) "${df.format(usageGbVal)} GB" else "${(item.totalBytes / (1024 * 1024))} MB"
+                val gbVal = item.totalBytes.toDouble() / (1024 * 1024 * 1024)
+                val mbVal = item.totalBytes.toDouble() / (1024 * 1024)
+                val kbVal = item.totalBytes.toDouble() / 1024
+
+                val usageGbStr = when {
+                    gbVal >= 0.1 -> "${df.format(gbVal)} GB"
+                    mbVal >= 0.1 -> "${df.format(mbVal)} MB"
+                    else -> "${df.format(kbVal)} KB"
+                }
+
                 val progress = (item.totalBytes.toFloat() / maxAppBytes.toFloat()).coerceIn(0.05f, 1.0f)
                 val sharePct = ((item.totalBytes.toDouble() / totalAllBytes.toDouble()) * 100).roundToInt()
 
@@ -423,7 +466,7 @@ class TrafficRepository(private val context: Context) {
                         progress = progress,
                         sharePercentText = "$sharePct%",
                         isSystemApp = false,
-                        explanationText = "Consumes high bandwidth data.",
+                        explanationText = "Active data consumption.",
                         categoryText = "Application",
                         totalBytes = item.totalBytes
                     )
@@ -432,8 +475,16 @@ class TrafficRepository(private val context: Context) {
         }
 
         if (systemAppsTotalBytes > 0) {
-            val usageGbVal = systemAppsTotalBytes.toDouble() / (1024 * 1024 * 1024)
-            val usageGbStr = if (usageGbVal >= 0.1) "${df.format(usageGbVal)} GB" else "${(systemAppsTotalBytes / (1024 * 1024))} MB"
+            val gbVal = systemAppsTotalBytes.toDouble() / (1024 * 1024 * 1024)
+            val mbVal = systemAppsTotalBytes.toDouble() / (1024 * 1024)
+            val kbVal = systemAppsTotalBytes.toDouble() / 1024
+
+            val usageGbStr = when {
+                gbVal >= 0.1 -> "${df.format(gbVal)} GB"
+                mbVal >= 0.1 -> "${df.format(mbVal)} MB"
+                else -> "${df.format(kbVal)} KB"
+            }
+
             val progress = (systemAppsTotalBytes.toFloat() / maxAppBytes.toFloat()).coerceIn(0.05f, 1.0f)
             val sharePct = ((systemAppsTotalBytes.toDouble() / totalAllBytes.toDouble()) * 100).roundToInt()
 
@@ -483,7 +534,7 @@ class TrafficRepository(private val context: Context) {
                         e.printStackTrace()
                     }
 
-                    if (total > 5 * 1024 * 1024) {
+                    if (total > 1024) { // Include all active apps > 1KB
                         val name = try { pm.getApplicationLabel(app).toString() } catch (e: Exception) { app.packageName }
                         val isSys = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
                         list.add(GlassWireAppUsage(name, app.packageName, total, isSys))
