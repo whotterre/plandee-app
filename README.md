@@ -1,4 +1,4 @@
-# PlanDee ⚡📱
+# PlanDee 
 
 > **Smart Data & Telecom Telemetry Analytics Platform for Android**
 
@@ -6,7 +6,7 @@ PlanDee is an intelligent Android application designed to track, analyze, and op
 
 ---
 
-## 🚀 Features
+## Features
 
 - **Real-Time Data Telemetry Tracker**: Monitors active network state changes (Wi-Fi vs. Mobile Data) with immediate session byte tracking and custom push notification alerts upon reaching spend milestones.
 - **GlassWire-Level App Ranking**: Captures granular per-app data consumption across both user applications (YouTube, Telegram, WhatsApp, Duolingo, Spotify) and background system services.
@@ -28,7 +28,7 @@ PlanDee is an intelligent Android application designed to track, analyze, and op
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 app/src/main/java/com/example/plandee/
@@ -96,7 +96,7 @@ app/src/main/java/com/example/plandee/
 
 ---
 
-## 🔒 Permissions & Security
+## Permissions & Security
 
 PlanDee uses Android system permissions strictly for telemetry aggregation:
 - `PACKAGE_USAGE_STATS`: For per-app Wi-Fi and Mobile data ranking (requires explicit user grant in Android Settings).
@@ -104,7 +104,3 @@ PlanDee uses Android system permissions strictly for telemetry aggregation:
 - `POST_NOTIFICATIONS`: For sending data limit threshold push notifications (Android 13+).
 
 ---
-
-## 📄 License
-
-Copyright © 2026 PlanDee. All rights reserved.
