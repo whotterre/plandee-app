@@ -25,7 +25,7 @@ import java.util.Locale
 fun OnboardingStep2Screen(
     onFinish: (budgetAmount: Int, telemetryGranted: Boolean) -> Unit = { _, _ -> }
 ) {
-    var budgetAmount by remember { mutableStateOf(10000f) }
+    var budgetAmount by remember { mutableFloatStateOf(10000f) }
     var telemetryGranted by remember { mutableStateOf(true) }
 
     val formattedBudget = remember(budgetAmount) {

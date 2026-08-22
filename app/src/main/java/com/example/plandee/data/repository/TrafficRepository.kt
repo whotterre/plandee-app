@@ -15,6 +15,7 @@ import com.example.plandee.data.telemetry.UsagePermissionBridge
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -41,8 +42,8 @@ data class DailyConsumptionBar(
 
 data class MonthlyTimelineBar(
     val dateMillis: Long,
-    val dayLabel: String,      // e.g. "Mon", "Tue"
-    val dateLabel: String,     // e.g. "14 Aug", "15 Aug"
+    val dayLabel: String,
+    val dateLabel: String,
     val wifiGb: Float,
     val mobileGb: Float,
     val totalGb: Float,
@@ -65,7 +66,7 @@ data class AppLeaderboardItem(
 class TrafficRepository(private val context: Context) {
 
     private val dbHelper = TrafficDatabaseHelper(context.applicationContext)
-    private val df = DecimalFormat("#.##")
+    private val df = DecimalFormat("#.##", DecimalFormatSymbols(Locale.US))
     private val dayFormat = SimpleDateFormat("EEE", Locale.US)
     private val dateFormat = SimpleDateFormat("dd MMM", Locale.US)
 
@@ -424,7 +425,6 @@ class TrafficRepository(private val context: Context) {
             }
         }
 
-        // ALWAYS MERGE SQLite Database logs (captures Telegram, Duolingo, YouTube, WhatsApp delta traffic)
         val dbUsages = dbHelper.getAppUsageSummaryByRange(startTimeMillis, endTimeMillis)
         for ((pkg, bytes) in dbUsages) {
             if (bytes > 0) {

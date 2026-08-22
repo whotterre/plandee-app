@@ -20,7 +20,6 @@ class MainActivity : ComponentActivity() {
         trafficMonitor = TrafficMonitor(this)
         trafficMonitor.startMonitoring()
 
-        // Schedule background periodic telemetry sync worker (6h interval)
         TelemetrySyncWorker.schedulePeriodicSync(applicationContext)
 
         setContent {

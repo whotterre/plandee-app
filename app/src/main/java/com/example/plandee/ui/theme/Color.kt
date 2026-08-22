@@ -14,6 +14,7 @@ val NeonEmeraldGlow = Color(0xFF6366F1)          // Electric Indigo Primary Glow
 val NeonCyanGlow = Color(0xFF06B6D4)             // Cyber Turquoise Glow
 val NeonRoseAccent = Color(0xFFEC4899)           // Electric Magenta Accent
 val RetroAmberGold = Color(0xFFF59E0B)           // Sunrise Amber Gold
+val CrimsonAlertBg = Color(0xFF2C151A)           // Crimson Alert Background
 
 // SYSTEM NEUTRAL TEXT TOKENS
 val SlateTextPrimary = Color(0xFFF8FAFC)
@@ -27,3 +28,6 @@ val DeeSlateBg = RetroTactileBg
 val InputBorderSlate = RetroBorderMetallic
 val TextPrimary = SlateTextPrimary
 val TextSecondary = SlateTextSecondary
+
+val MobileEmeraldGreen = Color(0xFF10B981) // Emerald Green matching user image
+val SkyBlueWifi = Color(0xFF3ABEF9)        // Sky Blue matching Wi-Fi theme

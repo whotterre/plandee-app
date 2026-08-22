@@ -28,7 +28,7 @@ import com.example.plandee.data.repository.TrafficSummary
 import com.example.plandee.ui.components.RetroTactileCard
 import com.example.plandee.ui.theme.*
 
-val MobileEmeraldGreen = Color(0xFF10B981) // Emerald Green matching user image
+
 
 @Composable
 fun DashboardTabHome(
@@ -63,7 +63,6 @@ fun DashboardTabHome(
     ) {
         Spacer(modifier = Modifier.height(12.dp))
 
-        // RETRO TACTILE DONUT CHART CARD - NETWORK TELEMETRY
         RetroTactileCard(
             modifier = Modifier.fillMaxWidth(),
             accentGlow = NeonEmeraldGlow

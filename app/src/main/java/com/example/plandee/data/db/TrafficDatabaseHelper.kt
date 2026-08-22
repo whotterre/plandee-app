@@ -164,6 +164,21 @@ class TrafficDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABA
         return total
     }
 
+    fun getBytesByRangeAndNetwork(startTime: Long, endTime: Long, networkType: String): Long {
+        val db = readableDatabase
+        val cursor = db.rawQuery(
+            "SELECT SUM($COL_DELTA_BYTES) FROM $TABLE_NETWORK WHERE $COL_NETWORK_TYPE = ? AND $COL_TIMESTAMP >= ? AND $COL_TIMESTAMP <= ?",
+            arrayOf(networkType, startTime.toString(), endTime.toString())
+        )
+        var total = 0L
+        cursor.use { c ->
+            if (c.moveToFirst()) {
+                total = c.getLong(0)
+            }
+        }
+        return total
+    }
+
     fun hasNetworkLogs(): Boolean {
         val db = readableDatabase
         val cursor = db.rawQuery("SELECT COUNT(*) FROM $TABLE_NETWORK", null)
@@ -233,5 +248,25 @@ class TrafficDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABA
             }
         }
         return list
+    }
+
+    fun getAppUsageSummaryByRange(startTime: Long, endTime: Long): Map<String, Long> {
+        val map = mutableMapOf<String, Long>()
+        val db = readableDatabase
+        val cursor = db.query(
+            TABLE_APP,
+            arrayOf(COL_PKG_NAME, COL_TOTAL_BYTES),
+            "$COL_TIMESTAMP >= ? AND $COL_TIMESTAMP <= ?",
+            arrayOf(startTime.toString(), endTime.toString()),
+            null, null, null
+        )
+        cursor.use { c ->
+            while (c.moveToNext()) {
+                val pkg = c.getString(0)
+                val bytes = c.getLong(1)
+                map[pkg] = bytes
+            }
+        }
+        return map
     }
 }

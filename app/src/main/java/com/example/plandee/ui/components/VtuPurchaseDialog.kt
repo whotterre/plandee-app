@@ -1,7 +1,6 @@
 package com.example.plandee.ui.components
 
 import android.widget.Toast
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -121,35 +120,34 @@ fun VtuPurchaseDialog(
                 onClick = {
                     if (phoneNumberInput.length < 10) {
                         errorMessage = "Enter a valid 11-digit Nigerian mobile number"
-                        return
-                    }
+                    } else {
+                        isLoading = true
+                        errorMessage = null
 
-                    isLoading = true
-                    errorMessage = null
+                        scope.launch {
+                            try {
+                                val apiService = RetrofitClient.getApiService(context)
+                                val request = VtuPurchaseRequest(
+                                    phoneNumber = phoneNumberInput,
+                                    carrier = plan.carrier,
+                                    planId = plan.planId,
+                                    planName = plan.planName,
+                                    priceNgn = plan.price
+                                )
+                                val response = apiService.purchaseVtuData(request)
+                                isLoading = false
 
-                    scope.launch {
-                        try {
-                            val apiService = RetrofitClient.getApiService(context)
-                            val request = VtuPurchaseRequest(
-                                phoneNumber = phoneNumberInput,
-                                carrier = plan.carrier,
-                                planId = plan.planId,
-                                planName = plan.planName,
-                                priceNgn = plan.price
-                            )
-                            val response = apiService.purchaseVtuData(request)
-                            isLoading = false
-
-                            if (response.isSuccessful && response.body() != null) {
-                                val body = response.body()!!
-                                Toast.makeText(context, body.message, Toast.LENGTH_LONG).show()
-                                onDismiss()
-                            } else {
-                                errorMessage = "VTU recharge failed. Please try again."
+                                if (response.isSuccessful && response.body() != null) {
+                                    val body = response.body()!!
+                                    Toast.makeText(context, body.message, Toast.LENGTH_LONG).show()
+                                    onDismiss()
+                                } else {
+                                    errorMessage = "VTU recharge failed. Please try again."
+                                }
+                            } catch (e: Exception) {
+                                isLoading = false
+                                errorMessage = "VTU Gateway Error: ${e.localizedMessage}"
                             }
-                        } catch (e: Exception) {
-                            isLoading = false
-                            errorMessage = "VTU Gateway Error: ${e.localizedMessage}"
                         }
                     }
                 },

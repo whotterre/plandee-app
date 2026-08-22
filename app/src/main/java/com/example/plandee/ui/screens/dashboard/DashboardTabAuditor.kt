@@ -1,6 +1,8 @@
 package com.example.plandee.ui.screens.dashboard
 
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -443,7 +445,14 @@ fun DashboardTabAuditor(
                     }
 
                     OutlinedButton(
-                        onClick = {},
+                        onClick = {
+                            try {
+                                val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(plan.ussdCode)))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp),

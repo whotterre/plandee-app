@@ -1,5 +1,6 @@
 package com.example.plandee.ui.screens.auth
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -11,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Visibility
@@ -28,24 +30,29 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.plandee.R
 import com.example.plandee.ui.theme.*
+import com.example.plandee.viewmodels.AuthViewModel
 
 @Composable
 fun AuthScreen(
     onLoginSuccess: () -> Unit = {},
-    onSignupSuccess: () -> Unit = {}
+    onSignupSuccess: () -> Unit = {},
+    authViewModel: AuthViewModel = viewModel()
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var isSignUpTab by remember { mutableStateOf(false) }
 
+    val uiState by authViewModel.uiState.collectAsState()
+
     val handlePrimaryAction = {
         if (isSignUpTab) {
-            onSignupSuccess()
+            authViewModel.signup(email, password, onSignupSuccess)
         } else {
-            onLoginSuccess()
+            authViewModel.login(email, password, onLoginSuccess)
         }
     }
 
@@ -62,7 +69,6 @@ fun AuthScreen(
         ) {
             Spacer(modifier = Modifier.height(48.dp))
 
-            // BRAND MASCOT LOGO CONTAINER
             Box(
                 modifier = Modifier
                     .size(64.dp)
@@ -80,7 +86,6 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(28.dp))
 
-            // HEADER TEXTS
             Text(
                 text = if (isSignUpTab) "Stop Overpaying for\nData." else "Welcome Back to\nPlan Dee.",
                 style = MaterialTheme.typography.headlineLarge,
@@ -99,9 +104,42 @@ fun AuthScreen(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // LOG IN / SIGN UP SEGMENTED TAB SWITCHER
+            if (uiState.errorMessage != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = CrimsonAlertBg),
+                    border = BorderStroke(1.dp, Color(0xFFEF4444))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ErrorOutline,
+                            contentDescription = "Error",
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = uiState.errorMessage!!,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = Color.White,
+                                fontSize = 13.sp
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -112,14 +150,16 @@ fun AuthScreen(
                     .padding(4.dp)
             ) {
                 Row(modifier = Modifier.fillMaxSize()) {
-                    // Log In Tab
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(8.dp))
                             .background(if (!isSignUpTab) NeonEmeraldGlow else Color.Transparent)
-                            .clickable { isSignUpTab = false },
+                            .clickable {
+                                authViewModel.clearError()
+                                isSignUpTab = false
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -131,14 +171,16 @@ fun AuthScreen(
                         )
                     }
 
-                    // Sign Up Tab
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(8.dp))
                             .background(if (isSignUpTab) NeonEmeraldGlow else Color.Transparent)
-                            .clickable { isSignUpTab = true },
+                            .clickable {
+                                authViewModel.clearError()
+                                isSignUpTab = true
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -167,10 +209,12 @@ fun AuthScreen(
                 unfocusedTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // EMAIL FIELD
             OutlinedTextField(
                 value = email,
-                onValueChange = { email = it },
+                onValueChange = {
+                    email = it
+                    authViewModel.clearError()
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
@@ -195,10 +239,12 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // PASSWORD FIELD
             OutlinedTextField(
                 value = password,
-                onValueChange = { password = it },
+                onValueChange = {
+                    password = it
+                    authViewModel.clearError()
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
@@ -232,36 +278,46 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // PRIMARY CTA BUTTON
             Button(
                 onClick = handlePrimaryAction,
+                enabled = !uiState.isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
                 shape = MaterialTheme.shapes.small,
-                colors = ButtonDefaults.buttonColors(containerColor = NeonEmeraldGlow)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = NeonEmeraldGlow,
+                    disabledContainerColor = NeonEmeraldGlow.copy(alpha = 0.6f)
+                )
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = if (isSignUpTab) "Create Account" else "Log In",
-                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp),
-                        color = Color.White
+                if (uiState.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White,
+                        strokeWidth = 2.5.dp
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "Arrow",
-                        tint = Color.White
-                    )
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = if (isSignUpTab) "Create Account" else "Log In",
+                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp),
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "Arrow",
+                            tint = Color.White
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // DIVIDER WITH "OR CONTINUE WITH" TEXT
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -289,9 +345,9 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // GOOGLE SIGN-IN BUTTON
             OutlinedButton(
                 onClick = handlePrimaryAction,
+                enabled = !uiState.isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
@@ -300,7 +356,7 @@ fun AuthScreen(
                     containerColor = RetroCardSurface,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ),
-                border = androidx.compose.foundation.BorderStroke(1.dp, RetroBorderMetallic)
+                border = BorderStroke(1.dp, RetroBorderMetallic)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -313,11 +369,9 @@ fun AuthScreen(
                             .background(Color.White),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "G",
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF4285F4),
-                            fontSize = 14.sp
+                        Icon(
+                            painter = painterResource(R.drawable.logo),
+                            contentDescription = "Google Logo",
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
@@ -331,7 +385,6 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(28.dp))
 
-            // FOOTER TOGGLE LINK
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -345,7 +398,10 @@ fun AuthScreen(
                         color = NeonEmeraldGlow,
                         fontWeight = FontWeight.Bold
                     ),
-                    modifier = Modifier.clickable { isSignUpTab = !isSignUpTab }
+                    modifier = Modifier.clickable {
+                        authViewModel.clearError()
+                        isSignUpTab = !isSignUpTab
+                    }
                 )
             }
 

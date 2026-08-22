@@ -251,7 +251,6 @@ class TrafficMonitor(private val context: Context) {
                 }
             }
 
-            // GlassWire-level direct TrafficStats scanner for Telegram, YouTube, Duolingo, WhatsApp
             val installedApps = pm.getInstalledApplications(0)
             for (appInfo in installedApps) {
                 val uid = appInfo.uid
@@ -284,8 +283,8 @@ class TrafficMonitor(private val context: Context) {
             deltaBytes = deltaRx + deltaTx
         }
 
-        lastTotalRxBytes = if (rx > 0) rx else System.currentTimeMillis()
-        lastTotalTxBytes = if (tx > 0) tx else System.currentTimeMillis()
+        lastTotalRxBytes = if (rx > 0) rx else 0L
+        lastTotalTxBytes = if (tx > 0) tx else 0L
 
         val activeType = if (detectedNetworkType == "INITIAL_CONNECT" || detectedNetworkType == "DISCONNECTED") {
             determineActiveNetworkType()
@@ -301,7 +300,6 @@ class TrafficMonitor(private val context: Context) {
                 sessionDeltaBytes = deltaBytes
             )
 
-            // DYNAMIC CUSTOM DATA THRESHOLD ALERT NOTIFICATION
             if (activeType == "MOBILE") {
                 sessionMobileBytesSpent += deltaBytes
                 val mbSpent = sessionMobileBytesSpent.toDouble() / (1024 * 1024)

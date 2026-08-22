@@ -56,7 +56,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: ConnectException) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    errorMessage = "Cannot connect to server at 10.249.38.84:8080. Check connection or IP."
+                    errorMessage = "Cannot connect to server. Please check your network connection or server status."
                 )
             } catch (e: UnknownHostException) {
                 _uiState.value = _uiState.value.copy(
@@ -117,7 +117,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: ConnectException) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    errorMessage = "Cannot connect to server at 10.249.38.84:8080. Check connection or IP."
+                    errorMessage = "Cannot connect to server. Please check your network connection or server status."
                 )
             } catch (e: UnknownHostException) {
                 _uiState.value = _uiState.value.copy(

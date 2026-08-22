@@ -8,9 +8,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
-
-    // 10.0.2.2 is the Android Emulator loopback IP pointing to localhost:8080 on the host machine
-    private const val BASE_URL = "http://10.0.2.2:8080/"
+    private const val BASE_URL = "http://10.129.10.84:8000/"
 
     @Volatile
     private var instance: ApiService? = null

@@ -117,7 +117,6 @@ fun DashboardScreen(
                         )
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            // RETRO HARDWARE STATUS BADGE
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
                                 color = if (uiState.isPro) NeonEmeraldGlow.copy(alpha = 0.15f) else RetroAmberGold.copy(alpha = 0.15f),
@@ -151,7 +150,6 @@ fun DashboardScreen(
 
                             Spacer(modifier = Modifier.width(10.dp))
 
-                            // EXPLICIT LOGOUT BUTTON IN TOP RIGHT HEADER
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = CrimsonAlertBg,
@@ -182,7 +180,6 @@ fun DashboardScreen(
                         }
                     }
 
-                    // FLOATING RETRO NETWORK EVENT BANNER
                     AnimatedVisibility(
                         visible = activeBannerMessage != null,
                         enter = slideInVertically() + fadeIn(),

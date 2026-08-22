@@ -7,7 +7,6 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Query
 
-// Auth DTOs
 data class RegisterRequest(
     val email: String,
     val password: String,
@@ -31,7 +30,6 @@ data class AuthResponse(
     }
 }
 
-// Pro Subscription DTOs
 data class ProStatusResponse(
     @SerializedName("is_pro") val isPro: Boolean,
     @SerializedName("tokens_remaining") val tokensRemaining: Int?,
@@ -49,7 +47,6 @@ data class ProUpgradeResponse(
     @SerializedName("revenue_cat_app_user_id") val revenueCatAppUserId: String? = null
 )
 
-// Telemetry Ingestion DTOs (matching Go backend TelemetryIngestionDto)
 data class UsageHistoryPayload(
     @SerializedName("connectionType") val connectionType: String,
     @SerializedName("networkCarrier") val networkCarrier: String,
@@ -68,7 +65,6 @@ data class TelemetrySyncResponse(
     val message: String?
 )
 
-// Telemetry Summary DTOs
 data class TotalStatsDto(
     @SerializedName("totalBytes") val totalBytes: Long,
     @SerializedName("totalGB") val totalGB: Double,
@@ -85,7 +81,6 @@ data class GetSummaryResponseDto(
     val totals: List<TotalStatsDto>?
 )
 
-// Leaderboard DTOs
 data class LeaderboardAppEntryDto(
     @SerializedName("app_name") val appName: String,
     @SerializedName("app_package_name") val appPackageName: String,
@@ -100,7 +95,6 @@ data class LeaderboardResponseDto(
     val data: List<LeaderboardAppEntryDto>?
 )
 
-// ML Recommendation DTOs
 data class MatchRecommendationRequest(
     @SerializedName("active_sims") val activeSims: List<String>,
     @SerializedName("monthly_budget_ngn") val monthlyBudgetNgn: Double,
@@ -131,7 +125,6 @@ data class MatchRecommendationResponse(
     @SerializedName("alternative_plans") val alternativePlans: List<MatchedPlanResultDto>?
 )
 
-// Virtual Top-Up (VTU) DTOs
 data class VtuPurchaseRequest(
     @SerializedName("phone_number") val phoneNumber: String,
     val carrier: String,
@@ -151,7 +144,6 @@ data class VtuPurchaseResponse(
     @SerializedName("network_response_code") val networkResponseCode: String?
 )
 
-// Ad Reward DTOs
 data class AdRewardRequest(
     @SerializedName("ad_unit_id") val adUnitId: String,
     val token: String
